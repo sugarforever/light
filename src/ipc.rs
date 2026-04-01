@@ -12,6 +12,8 @@ pub enum ChromeToApp {
     GoForward,
     Reload,
     ReorderTab { from: usize, to: usize },
+    AddBookmark { name: String, url: String },
+    RemoveBookmark { url: String },
 }
 
 /// Messages sent from Rust to the chrome webview via evaluate_script
@@ -23,6 +25,13 @@ pub enum AppToChrome {
     TabUpdated { id: u64, title: String, url: String, is_loading: bool },
     ActiveTabChanged { id: u64 },
     AllTabs { tabs: Vec<TabInfo>, active_id: u64 },
+    Bookmarks { bookmarks: Vec<BookmarkInfo> },
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+pub struct BookmarkInfo {
+    pub name: String,
+    pub url: String,
 }
 
 #[derive(Debug, Serialize, PartialEq)]

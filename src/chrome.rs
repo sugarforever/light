@@ -1,5 +1,5 @@
-/// Returns the HTML string for the browser chrome (tab bar + nav bar).
-/// Styled to match mainstream browser conventions (Chrome/Arc-like).
+/// Returns the HTML string for the browser chrome (tab bar + nav bar + bookmarks bar).
+/// Styled to match mainstream browser conventions (Chrome-like).
 pub fn chrome_html() -> String {
     r##"<!DOCTYPE html>
 <html>
@@ -22,7 +22,7 @@ pub fn chrome_html() -> String {
     align-items: flex-end;
     height: 36px;
     background: #202124;
-    padding: 0 8px 0 72px; /* left padding for macOS traffic lights */
+    padding: 0 8px 0 72px;
     gap: 0;
     -webkit-app-region: drag;
   }
@@ -51,10 +51,7 @@ pub fn chrome_html() -> String {
     -webkit-app-region: no-drag;
   }
   .tab:hover { background: #292b2e; }
-  .tab.active {
-    background: #35363a;
-    color: #e8eaed;
-  }
+  .tab.active { background: #35363a; color: #e8eaed; }
   .tab-title {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -95,7 +92,7 @@ pub fn chrome_html() -> String {
   }
   #new-tab-btn:hover { background: #35363a; }
 
-  /* Nav bar — Chrome-style omnibar */
+  /* Nav bar */
   #nav-bar {
     display: flex;
     align-items: center;
@@ -138,6 +135,49 @@ pub fn chrome_html() -> String {
     box-shadow: 0 0 0 2px #8ab4f8;
   }
   #address-bar::selection { background: #3c6db5; }
+  #bookmark-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    color: #9aa0a6;
+    background: none;
+    border: none;
+    flex-shrink: 0;
+    transition: background 0.1s;
+  }
+  #bookmark-btn:hover { background: #4a4b4f; }
+  #bookmark-btn.bookmarked { color: #8ab4f8; }
+
+  /* Bookmarks bar */
+  #bookmarks-bar {
+    display: none;
+    align-items: center;
+    height: 28px;
+    background: #292b2e;
+    padding: 0 8px;
+    gap: 2px;
+    overflow: hidden;
+  }
+  #bookmarks-bar.visible { display: flex; }
+  .bookmark-item {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 10px;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #bdc1c6;
+    white-space: nowrap;
+    transition: background 0.1s;
+  }
+  .bookmark-item:hover { background: #3c3c3c; color: #e8eaed; }
 </style>
 </head>
 <body>
@@ -153,12 +193,17 @@ pub fn chrome_html() -> String {
   <button class="nav-btn" onclick="send({type:'Reload'})">&#8635;</button>
   <input id="address-bar" type="text" spellcheck="false"
          onkeydown="if(event.key==='Enter'){send({type:'Navigate',url:this.value})}">
+  <button id="bookmark-btn" onclick="toggleBookmark()" title="Bookmark this page">&#9734;</button>
 </div>
+
+<div id="bookmarks-bar"></div>
 
 <script>
   let tabs = [];
   let activeId = null;
   let dragSrcIdx = null;
+  let bookmarks = [];
+  let currentUrl = '';
 
   function send(msg) {
     window.ipc.postMessage(JSON.stringify(msg));
@@ -187,6 +232,47 @@ pub fn chrome_html() -> String {
     });
   }
 
+  function renderBookmarks() {
+    const bar = document.getElementById('bookmarks-bar');
+    bar.innerHTML = '';
+    if (bookmarks.length === 0) {
+      bar.classList.remove('visible');
+      return;
+    }
+    bar.classList.add('visible');
+    bookmarks.forEach(bm => {
+      const el = document.createElement('div');
+      el.className = 'bookmark-item';
+      el.textContent = bm.name;
+      el.onclick = () => send({type:'Navigate', url: bm.url});
+      el.oncontextmenu = (e) => {
+        e.preventDefault();
+        send({type:'RemoveBookmark', url: bm.url});
+      };
+      bar.appendChild(el);
+    });
+    updateBookmarkBtn();
+  }
+
+  function updateBookmarkBtn() {
+    const btn = document.getElementById('bookmark-btn');
+    const isBookmarked = bookmarks.some(b => b.url === currentUrl);
+    btn.innerHTML = isBookmarked ? '&#9733;' : '&#9734;';
+    btn.className = isBookmarked ? 'bookmarked' : '';
+    btn.id = 'bookmark-btn';
+  }
+
+  function toggleBookmark() {
+    const isBookmarked = bookmarks.some(b => b.url === currentUrl);
+    if (isBookmarked) {
+      send({type:'RemoveBookmark', url: currentUrl});
+    } else {
+      const activeTab = tabs.find(t => t.id === activeId);
+      const name = activeTab ? activeTab.title : currentUrl;
+      send({type:'AddBookmark', name: name, url: currentUrl});
+    }
+  }
+
   function escapeHtml(s) {
     const d = document.createElement('div');
     d.textContent = s;
@@ -198,8 +284,10 @@ pub fn chrome_html() -> String {
       case 'TabCreated':
         tabs.push({id: msg.id, title: msg.title, url: msg.url, is_loading: false});
         activeId = msg.id;
+        currentUrl = msg.url;
         renderTabs();
         document.getElementById('address-bar').value = msg.url;
+        updateBookmarkBtn();
         break;
       case 'TabClosed':
         tabs = tabs.filter(t => t.id !== msg.id);
@@ -209,21 +297,35 @@ pub fn chrome_html() -> String {
         tabs = tabs.map(t => t.id === msg.id ? {...t, title: msg.title, url: msg.url, is_loading: msg.is_loading} : t);
         renderTabs();
         if (msg.id === activeId) {
+          currentUrl = msg.url;
           document.getElementById('address-bar').value = msg.url;
+          updateBookmarkBtn();
         }
         break;
       case 'ActiveTabChanged':
         activeId = msg.id;
         renderTabs();
         const at = tabs.find(t => t.id === msg.id);
-        if (at) document.getElementById('address-bar').value = at.url;
+        if (at) {
+          currentUrl = at.url;
+          document.getElementById('address-bar').value = at.url;
+          updateBookmarkBtn();
+        }
         break;
       case 'AllTabs':
         tabs = msg.tabs;
         activeId = msg.active_id;
         renderTabs();
         const act = tabs.find(t => t.id === activeId);
-        if (act) document.getElementById('address-bar').value = act.url;
+        if (act) {
+          currentUrl = act.url;
+          document.getElementById('address-bar').value = act.url;
+          updateBookmarkBtn();
+        }
+        break;
+      case 'Bookmarks':
+        bookmarks = msg.bookmarks;
+        renderBookmarks();
         break;
       case 'FocusAddressBar':
         document.getElementById('address-bar').focus();

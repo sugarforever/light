@@ -11,7 +11,9 @@ use wry::{
     Rect, WebView, WebViewBuilder,
 };
 
+use crate::bookmarks::{self, Bookmark};
 use crate::chrome::chrome_html;
+use crate::settings;
 use crate::engine::wry_engine::WryEngine;
 use crate::engine::WebEngine;
 use crate::ipc::{self, AppToChrome, TabInfo};
@@ -19,13 +21,14 @@ use crate::keys::{self, Shortcut};
 use crate::tab::{TabId, TabManager};
 use crate::url::normalize_url;
 
-const CHROME_HEIGHT: u32 = 70;
+const CHROME_HEIGHT: u32 = 98; // tab bar (36) + nav bar (34) + bookmarks bar (28)
 const DEFAULT_URL: &str = "about:blank";
 
 struct AppState {
     chrome_webview: Option<WebView>,
     engine: Option<WryEngine<'static>>,
     tabs: TabManager,
+    bookmarks: Vec<Bookmark>,
     modifiers: ModifiersState,
     ipc_receiver: Option<mpsc::Receiver<String>>,
     window_width: u32,
@@ -105,7 +108,23 @@ impl AppState {
                 self.tabs.reorder(from, to);
                 self.sync_all_tabs();
             }
+            ipc::ChromeToApp::AddBookmark { name, url } => {
+                bookmarks::add(&mut self.bookmarks, &name, &url);
+                self.sync_bookmarks();
+            }
+            ipc::ChromeToApp::RemoveBookmark { url } => {
+                bookmarks::remove(&mut self.bookmarks, &url);
+                self.sync_bookmarks();
+            }
         }
+    }
+
+    fn sync_bookmarks(&self) {
+        let bm: Vec<ipc::BookmarkInfo> = self.bookmarks.iter().map(|b| ipc::BookmarkInfo {
+            name: b.name.clone(),
+            url: b.url.clone(),
+        }).collect();
+        self.send_to_chrome(&AppToChrome::Bookmarks { bookmarks: bm });
     }
 
     fn create_tab(&mut self, url: &str) {
@@ -226,9 +245,19 @@ fn setup_macos_edit_menu() {
 pub fn run() {
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("Light")
-        .with_inner_size(LogicalSize::new(1280u32, 800u32))
+    let mut builder = WindowBuilder::new()
+        .with_title("")
+        .with_inner_size(LogicalSize::new(1280u32, 800u32));
+
+    #[cfg(target_os = "macos")]
+    {
+        use tao::platform::macos::WindowBuilderExtMacOS;
+        builder = builder
+            .with_titlebar_transparent(true)
+            .with_fullsize_content_view(true);
+    }
+
+    let window = builder
         .build(&event_loop)
         .unwrap();
 
@@ -257,18 +286,23 @@ pub fn run() {
         .build_as_child(window)
         .unwrap();
 
+    let user_bookmarks = bookmarks::load();
+
     let mut state = AppState {
         chrome_webview: Some(chrome),
         engine: Some(WryEngine::new(window)),
         tabs: TabManager::new(),
+        bookmarks: user_bookmarks,
         modifiers: ModifiersState::empty(),
         ipc_receiver: Some(rx),
         window_width: size.width,
         window_height: size.height,
     };
 
-    // Open default tab
-    state.create_tab("https://start.duckduckgo.com");
+    // Open default tab from settings
+    let user_settings = settings::load();
+    state.create_tab(&user_settings.default_url);
+    state.sync_bookmarks();
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
