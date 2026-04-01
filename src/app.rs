@@ -23,11 +23,13 @@ use crate::tab::{TabId, TabManager};
 use crate::url::normalize_url;
 
 const SIDEBAR_WIDTH: u32 = 220;
+const NAV_BAR_HEIGHT: u32 = 38;
 const FALLBACK_URL: &str = "about:blank";
 
 struct AppState {
     window: &'static tao::window::Window,
-    chrome_webview: Option<WebView>,
+    sidebar_webview: Option<WebView>,
+    navbar_webview: Option<WebView>,
     engine: Option<WryEngine<'static>>,
     tabs: TabManager,
     bookmarks: Vec<Bookmark>,
@@ -41,21 +43,38 @@ struct AppState {
 impl AppState {
     fn content_bounds(&self) -> Rect {
         Rect {
-            position: LogicalPosition::new(SIDEBAR_WIDTH, 0).into(),
-            size: WryLogicalSize::new(self.window_width.saturating_sub(SIDEBAR_WIDTH), self.window_height).into(),
+            position: LogicalPosition::new(SIDEBAR_WIDTH, NAV_BAR_HEIGHT).into(),
+            size: WryLogicalSize::new(
+                self.window_width.saturating_sub(SIDEBAR_WIDTH),
+                self.window_height.saturating_sub(NAV_BAR_HEIGHT),
+            ).into(),
         }
     }
 
-    fn chrome_bounds(&self) -> Rect {
+    fn sidebar_bounds(&self) -> Rect {
         Rect {
             position: LogicalPosition::new(0, 0).into(),
             size: WryLogicalSize::new(SIDEBAR_WIDTH, self.window_height).into(),
         }
     }
 
+    fn navbar_bounds(&self) -> Rect {
+        Rect {
+            position: LogicalPosition::new(SIDEBAR_WIDTH, 0).into(),
+            size: WryLogicalSize::new(
+                self.window_width.saturating_sub(SIDEBAR_WIDTH),
+                NAV_BAR_HEIGHT,
+            ).into(),
+        }
+    }
+
     fn send_to_chrome(&self, msg: &AppToChrome) {
-        if let Some(chrome) = &self.chrome_webview {
-            let _ = chrome.evaluate_script(&msg.to_js_call());
+        let js = msg.to_js_call();
+        if let Some(sidebar) = &self.sidebar_webview {
+            let _ = sidebar.evaluate_script(&js);
+        }
+        if let Some(navbar) = &self.navbar_webview {
+            let _ = navbar.evaluate_script(&js);
         }
     }
 
@@ -123,10 +142,9 @@ impl AppState {
                 self.sync_bookmarks();
             }
             ipc::ChromeToApp::ToggleBookmarksBar => {
-                if let Some(chrome) = &self.chrome_webview {
-                    let _ = chrome.evaluate_script(
-                        "bookmarksBarVisible = !bookmarksBarVisible; \
-                         document.getElementById('bookmarks-bar').classList.toggle('visible', bookmarksBarVisible && bookmarks.length > 0);"
+                if let Some(sidebar) = &self.sidebar_webview {
+                    let _ = sidebar.evaluate_script(
+                        "bookmarksVisible = !bookmarksVisible; renderBookmarks();"
                     );
                 }
             }
@@ -154,8 +172,8 @@ impl AppState {
                 self.default_url = default_url;
             }
             ipc::ChromeToApp::FocusAddressBar => {
-                if let Some(chrome) = &self.chrome_webview {
-                    let _ = chrome.evaluate_script("handleMessage({type:'FocusAddressBar'})");
+                if let Some(navbar) = &self.navbar_webview {
+                    let _ = navbar.evaluate_script("handleMessage({type:'FocusAddressBar'})");
                 }
             }
             ipc::ChromeToApp::DragWindow => {
@@ -183,7 +201,7 @@ impl AppState {
             let title = if tab.title.is_empty() || tab.title == "New Tab" {
                 "Light".to_string()
             } else {
-                format!("{} — Light", tab.title)
+                tab.title.clone()
             };
             self.window.set_title(&title);
         }
@@ -264,8 +282,11 @@ impl AppState {
                 let _ = engine.set_bounds(tab.id, bounds);
             }
         }
-        if let Some(chrome) = &self.chrome_webview {
-            let _ = chrome.set_bounds(self.chrome_bounds());
+        if let Some(sidebar) = &self.sidebar_webview {
+            let _ = sidebar.set_bounds(self.sidebar_bounds());
+        }
+        if let Some(navbar) = &self.navbar_webview {
+            let _ = navbar.set_bounds(self.navbar_bounds());
         }
     }
 }
@@ -332,17 +353,34 @@ pub fn run() {
 
     // IPC channel
     let (tx, rx) = mpsc::channel::<String>();
-    let engine_tx = tx.clone();
+    let sidebar_tx = tx.clone();
+    let navbar_tx = tx.clone();
+    let engine_tx = tx;
 
-    // Chrome sidebar on the left
-    let chrome = WebViewBuilder::new()
+    // Sidebar on the left (tabs, bookmarks, menu)
+    let sidebar = WebViewBuilder::new()
         .with_bounds(Rect {
             position: LogicalPosition::new(0, 0).into(),
             size: WryLogicalSize::new(SIDEBAR_WIDTH, size.height).into(),
         })
         .with_html(&chrome_html())
         .with_ipc_handler(move |req| {
-            let _ = tx.send(req.body().clone());
+            let _ = sidebar_tx.send(req.body().clone());
+        })
+        .with_focused(false)
+        .build_as_child(window)
+        .unwrap();
+
+    // Nav bar at the top of the content area
+    let content_width = size.width.saturating_sub(SIDEBAR_WIDTH);
+    let navbar = WebViewBuilder::new()
+        .with_bounds(Rect {
+            position: LogicalPosition::new(SIDEBAR_WIDTH, 0).into(),
+            size: WryLogicalSize::new(content_width, NAV_BAR_HEIGHT).into(),
+        })
+        .with_html(&crate::navbar::navbar_html())
+        .with_ipc_handler(move |req| {
+            let _ = navbar_tx.send(req.body().clone());
         })
         .with_focused(false)
         .build_as_child(window)
@@ -354,7 +392,8 @@ pub fn run() {
 
     let mut state = AppState {
         window,
-        chrome_webview: Some(chrome),
+        sidebar_webview: Some(sidebar),
+        navbar_webview: Some(navbar),
         engine: Some(WryEngine::new(window, engine_tx)),
         tabs: TabManager::new(),
         bookmarks: user_bookmarks,
@@ -403,8 +442,8 @@ pub fn run() {
                                 }
                             }
                             Shortcut::FocusAddressBar => {
-                                if let Some(chrome) = &state.chrome_webview {
-                                    let _ = chrome.evaluate_script(
+                                if let Some(navbar) = &state.navbar_webview {
+                                    let _ = navbar.evaluate_script(
                                         "handleMessage({type:'FocusAddressBar'})",
                                     );
                                 }

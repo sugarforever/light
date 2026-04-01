@@ -4,6 +4,7 @@ mod chrome;
 mod engine;
 mod ipc;
 mod keys;
+mod navbar;
 mod settings;
 mod settings_page;
 mod tab;

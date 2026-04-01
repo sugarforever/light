@@ -1,5 +1,5 @@
-/// Returns the HTML string for the browser sidebar chrome.
-/// Vertical layout: nav controls, address bar, tabs, bookmarks, menu.
+/// Returns the HTML string for the sidebar chrome.
+/// Vertical layout: tabs, bookmarks, menu.
 pub fn chrome_html() -> String {
     r##"<!DOCTYPE html>
 <html>
@@ -20,84 +20,13 @@ pub fn chrome_html() -> String {
     flex-direction: column;
   }
 
-  /* Nav controls */
-  #nav-controls {
-    display: flex;
-    align-items: center;
-    padding: 8px 8px 4px;
-    gap: 2px;
-    flex-shrink: 0;
-  }
-  .nav-btn {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    color: #9aa0a6;
-    background: none;
-    border: none;
-    transition: background 0.1s;
-  }
-  .nav-btn:hover { background: #35363a; color: #e8eaed; }
-
-  /* Address bar */
-  #address-section {
-    padding: 4px 8px;
-    display: flex;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-  #address-bar {
-    flex: 1;
-    height: 28px;
-    background: #292b2e;
-    border: 1px solid #3c3c3c;
-    border-radius: 8px;
-    padding: 0 10px;
-    color: #e8eaed;
-    font-size: 12px;
-    outline: none;
-  }
-  #address-bar:focus {
-    border-color: #8ab4f8;
-    box-shadow: 0 0 0 1px #8ab4f8;
-  }
-  #bookmark-btn, #menu-btn {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    color: #9aa0a6;
-    background: none;
-    border: none;
-    flex-shrink: 0;
-  }
-  #bookmark-btn:hover, #menu-btn:hover { background: #35363a; }
-  #bookmark-btn.bookmarked { color: #8ab4f8; }
-
-  /* Divider */
-  .divider {
-    height: 1px;
-    background: #35363a;
-    margin: 4px 8px;
-    flex-shrink: 0;
-  }
-
   /* Section label */
   .section-label {
     font-size: 10px;
     color: #6e6e6e;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    padding: 6px 12px 4px;
+    padding: 8px 12px 4px;
     flex-shrink: 0;
   }
 
@@ -107,6 +36,7 @@ pub fn chrome_html() -> String {
     overflow-y: auto;
     overflow-x: hidden;
     min-height: 0;
+    padding-top: 4px;
   }
   #tabs-section::-webkit-scrollbar { width: 4px; }
   #tabs-section::-webkit-scrollbar-thumb { background: #3c3c3c; border-radius: 2px; }
@@ -163,6 +93,14 @@ pub fn chrome_html() -> String {
   #new-tab-btn:hover { background: #292b2e; color: #e8eaed; }
   #new-tab-btn .plus { font-size: 16px; }
 
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: #2a2a2a;
+    margin: 4px 8px;
+    flex-shrink: 0;
+  }
+
   /* Bookmarks section */
   #bookmarks-section {
     max-height: 150px;
@@ -191,6 +129,30 @@ pub fn chrome_html() -> String {
     flex: 1;
   }
 
+  /* Bottom bar with menu */
+  #bottom-bar {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    gap: 4px;
+    flex-shrink: 0;
+    border-top: 1px solid #2a2a2a;
+  }
+  #menu-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    color: #9aa0a6;
+    background: none;
+    border: none;
+  }
+  #menu-btn:hover { background: #35363a; }
+
   /* Menu dropdown */
   #menu-dropdown {
     display: none;
@@ -218,37 +180,12 @@ pub fn chrome_html() -> String {
   }
   .menu-item:hover { background: #3c3c3c; }
   .menu-item .icon { color: #9aa0a6; font-size: 13px; width: 16px; text-align: center; }
-
-  /* Bottom bar */
-  #bottom-bar {
-    display: flex;
-    align-items: center;
-    padding: 6px 8px;
-    gap: 4px;
-    flex-shrink: 0;
-    border-top: 1px solid #35363a;
-  }
 </style>
 </head>
 <body>
 
-<div id="nav-controls">
-  <button class="nav-btn" onclick="send({type:'GoBack'})">&#9664;</button>
-  <button class="nav-btn" onclick="send({type:'GoForward'})">&#9654;</button>
-  <button class="nav-btn" onclick="send({type:'Reload'})">&#8635;</button>
-</div>
-
-<div id="address-section">
-  <input id="address-bar" type="text" spellcheck="false"
-         onkeydown="if(event.key==='Enter'){send({type:'Navigate',url:this.value})}">
-  <button id="bookmark-btn" onclick="toggleBookmark()" title="Bookmark">&#9734;</button>
-</div>
-
-<div class="divider"></div>
 <div class="section-label">Tabs</div>
-
 <div id="tabs-section"></div>
-
 <div id="new-tab-btn" onclick="send({type:'NewTab'})">
   <span class="plus">+</span> New Tab
 </div>
@@ -270,7 +207,6 @@ pub fn chrome_html() -> String {
   let tabs = [];
   let activeId = null;
   let bookmarks = [];
-  let currentUrl = '';
   let bookmarksVisible = true;
 
   function send(msg) {
@@ -283,7 +219,7 @@ pub fn chrome_html() -> String {
       switch (e.key) {
         case 't': e.preventDefault(); send({type:'NewTab'}); break;
         case 'w': e.preventDefault(); send({type:'CloseTab', id: activeId}); break;
-        case 'l': e.preventDefault(); handleMessage({type:'FocusAddressBar'}); break;
+        case 'l': e.preventDefault(); send({type:'FocusAddressBar'}); break;
         case 'r': e.preventDefault(); send({type:'Reload'}); break;
       }
     }
@@ -303,7 +239,7 @@ pub fn chrome_html() -> String {
   function renderTabs() {
     const container = document.getElementById('tabs-section');
     container.innerHTML = '';
-    tabs.forEach((tab, idx) => {
+    tabs.forEach((tab) => {
       const el = document.createElement('div');
       el.className = 'tab' + (tab.id === activeId ? ' active' : '');
       el.innerHTML = '<span class="tab-title">' + escapeHtml(tab.title) + '</span>'
@@ -332,26 +268,6 @@ pub fn chrome_html() -> String {
       el.oncontextmenu = (e) => { e.preventDefault(); send({type:'RemoveBookmark', url: bm.url}); };
       section.appendChild(el);
     });
-    updateBookmarkBtn();
-  }
-
-  function updateBookmarkBtn() {
-    const btn = document.getElementById('bookmark-btn');
-    const isBookmarked = bookmarks.some(b => b.url === currentUrl);
-    btn.innerHTML = isBookmarked ? '&#9733;' : '&#9734;';
-    btn.className = isBookmarked ? 'bookmarked' : '';
-    btn.id = 'bookmark-btn';
-  }
-
-  function toggleBookmark() {
-    const isBookmarked = bookmarks.some(b => b.url === currentUrl);
-    if (isBookmarked) {
-      send({type:'RemoveBookmark', url: currentUrl});
-    } else {
-      const activeTab = tabs.find(t => t.id === activeId);
-      const name = activeTab ? activeTab.title : currentUrl;
-      send({type:'AddBookmark', name: name, url: currentUrl});
-    }
   }
 
   function escapeHtml(s) {
@@ -363,54 +279,30 @@ pub fn chrome_html() -> String {
   function handleMessage(msg) {
     switch (msg.type) {
       case 'TabCreated':
-        tabs.push({id: msg.id, title: msg.title, url: msg.url, is_loading: false});
+        tabs.push({id: msg.id, title: msg.title, url: msg.url});
         activeId = msg.id;
-        currentUrl = msg.url;
         renderTabs();
-        document.getElementById('address-bar').value = msg.url;
-        updateBookmarkBtn();
         break;
       case 'TabClosed':
         tabs = tabs.filter(t => t.id !== msg.id);
         renderTabs();
         break;
       case 'TabUpdated':
-        tabs = tabs.map(t => t.id === msg.id ? {...t, title: msg.title, url: msg.url, is_loading: msg.is_loading} : t);
+        tabs = tabs.map(t => t.id === msg.id ? {...t, title: msg.title, url: msg.url} : t);
         renderTabs();
-        if (msg.id === activeId) {
-          currentUrl = msg.url;
-          document.getElementById('address-bar').value = msg.url;
-          updateBookmarkBtn();
-        }
         break;
       case 'ActiveTabChanged':
         activeId = msg.id;
         renderTabs();
-        const at = tabs.find(t => t.id === msg.id);
-        if (at) {
-          currentUrl = at.url;
-          document.getElementById('address-bar').value = at.url;
-          updateBookmarkBtn();
-        }
         break;
       case 'AllTabs':
         tabs = msg.tabs;
         activeId = msg.active_id;
         renderTabs();
-        const act = tabs.find(t => t.id === activeId);
-        if (act) {
-          currentUrl = act.url;
-          document.getElementById('address-bar').value = act.url;
-          updateBookmarkBtn();
-        }
         break;
       case 'Bookmarks':
         bookmarks = msg.bookmarks;
         renderBookmarks();
-        break;
-      case 'FocusAddressBar':
-        document.getElementById('address-bar').focus();
-        document.getElementById('address-bar').select();
         break;
     }
   }
