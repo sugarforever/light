@@ -3,6 +3,10 @@ name = "light"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "Light"
+path = "src/main.rs"
+
 [dependencies]
 wry = "0.50"
 tao = "0.32"

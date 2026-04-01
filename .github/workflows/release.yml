@@ -9,24 +9,17 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build-macos:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - runner: macos-13
             target: x86_64-apple-darwin
-            artifact: light-macos-x86_64
-          - os: macos-latest
+            arch: x86_64
+          - runner: macos-14
             target: aarch64-apple-darwin
-            artifact: light-macos-aarch64
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact: light-linux-x86_64
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact: light-windows-x86_64
-
-    runs-on: ${{ matrix.os }}
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,37 +29,128 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install Linux dependencies
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Create .app bundle
+        run: |
+          APP_DIR="target/release/Light.app"
+          mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
+          cp macos/Light.app/Contents/Info.plist "$APP_DIR/Contents/"
+          cp macos/Light.app/Contents/Resources/AppIcon.icns "$APP_DIR/Contents/Resources/"
+          cp "target/${{ matrix.target }}/release/Light" "$APP_DIR/Contents/MacOS/Light"
+
+      - name: Import signing certificate
+        if: env.APPLE_CERTIFICATE_BASE64 != ''
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm certificate.p12
+
+      - name: Code sign app bundle
+        if: env.APPLE_CERTIFICATE_BASE64 != ''
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          codesign --deep --force --options runtime \
+            --sign "Developer ID Application: ${{ secrets.APPLE_SIGNING_NAME }} (${{ secrets.APPLE_TEAM_ID }})" \
+            target/release/Light.app
+
+      - name: Create DMG
+        run: |
+          create-dmg \
+            --volname "Light" \
+            --window-size 600 400 \
+            --icon "Light.app" 150 200 \
+            --app-drop-link 450 200 \
+            --no-internet-enable \
+            "Light-macos-${{ matrix.arch }}.dmg" \
+            "target/release/Light.app" || true
+          # create-dmg returns non-zero when no signing identity is found, but DMG is still created
+          ls -la Light-macos-${{ matrix.arch }}.dmg
+
+      - name: Notarize DMG
+        if: env.APPLE_ID != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit "Light-macos-${{ matrix.arch }}.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "Light-macos-${{ matrix.arch }}.dmg"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Light-macos-${{ matrix.arch }}
+          path: Light-macos-${{ matrix.arch }}.dmg
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
 
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release
 
-      - name: Package binary (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Package
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/light dist/
-          cd dist && tar -czf ../${{ matrix.artifact }}.tar.gz light
-
-      - name: Package binary (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          mkdir dist
-          copy target\${{ matrix.target }}\release\light.exe dist\
-          cd dist && Compress-Archive -Path light.exe -DestinationPath ..\${{ matrix.artifact }}.zip
+          cp target/release/Light dist/
+          cd dist && tar -czf ../Light-linux-x86_64.tar.gz Light
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.*
+          name: Light-linux-x86_64
+          path: Light-linux-x86_64.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Package
+        run: Compress-Archive -Path target\release\Light.exe -DestinationPath Light-windows-x86_64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Light-windows-x86_64
+          path: Light-windows-x86_64.zip
 
   release:
-    needs: build
+    needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -81,4 +165,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: artifacts/**/*
+          files: |
+            artifacts/Light-macos-aarch64/Light-macos-aarch64.dmg
+            artifacts/Light-macos-x86_64/Light-macos-x86_64.dmg
+            artifacts/Light-linux-x86_64/Light-linux-x86_64.tar.gz
+            artifacts/Light-windows-x86_64/Light-windows-x86_64.zip
