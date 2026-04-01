@@ -288,11 +288,11 @@ impl ApplicationHandler for App {
                     }
                 }
             }
-            WindowEvent::RedrawRequested => {
-                self.drain_ipc();
-                self.window().request_redraw();
-            }
             _ => {}
         }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        self.drain_ipc();
     }
 }
