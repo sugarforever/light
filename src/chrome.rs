@@ -72,6 +72,8 @@ pub fn chrome_html() -> String {
   }
   .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
   .tab-close:hover { background: #5f6368; color: #fff; }
+  .tab-close::selection { background: transparent; }
+  .tab-title::selection { background: transparent; }
   #new-tab-btn {
     width: 28px;
     height: 28px;
