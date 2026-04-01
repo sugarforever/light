@@ -154,7 +154,7 @@ impl AppState {
                 self.default_url = default_url;
             }
             ipc::ChromeToApp::DragWindow => {
-                let _ = self.window.drag_window();
+                // Not used currently — native title bar handles dragging
             }
             ipc::ChromeToApp::PageInfo { tab_id, title, url } => {
                 let id = TabId(tab_id);
@@ -166,7 +166,21 @@ impl AppState {
                     url,
                     is_loading: false,
                 });
+                if self.tabs.active_id() == Some(id) {
+                    self.update_window_title();
+                }
             }
+        }
+    }
+
+    fn update_window_title(&self) {
+        if let Some(tab) = self.tabs.active_tab() {
+            let title = if tab.title.is_empty() || tab.title == "New Tab" {
+                "Light".to_string()
+            } else {
+                format!("{} — Light", tab.title)
+            };
+            self.window.set_title(&title);
         }
     }
 
@@ -224,6 +238,7 @@ impl AppState {
         }
 
         self.send_to_chrome(&AppToChrome::ActiveTabChanged { id: id.0 });
+        self.update_window_title();
     }
 
     fn sync_all_tabs(&self) {
@@ -296,19 +311,9 @@ fn setup_macos_edit_menu() {
 pub fn run() {
     let event_loop = EventLoop::new();
 
-    let mut builder = WindowBuilder::new()
-        .with_title("")
-        .with_inner_size(LogicalSize::new(1280u32, 800u32));
-
-    #[cfg(target_os = "macos")]
-    {
-        use tao::platform::macos::WindowBuilderExtMacOS;
-        builder = builder
-            .with_titlebar_transparent(true)
-            .with_fullsize_content_view(true);
-    }
-
-    let window = builder
+    let window = WindowBuilder::new()
+        .with_title("Light")
+        .with_inner_size(LogicalSize::new(1280u32, 800u32))
         .build(&event_loop)
         .unwrap();
 
