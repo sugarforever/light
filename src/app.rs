@@ -22,7 +22,7 @@ use crate::keys::{self, Shortcut};
 use crate::tab::{TabId, TabManager};
 use crate::url::normalize_url;
 
-const CHROME_HEIGHT: u32 = 98; // tab bar (36) + nav bar (34) + bookmarks bar (28)
+const SIDEBAR_WIDTH: u32 = 220;
 const FALLBACK_URL: &str = "about:blank";
 
 struct AppState {
@@ -41,15 +41,15 @@ struct AppState {
 impl AppState {
     fn content_bounds(&self) -> Rect {
         Rect {
-            position: LogicalPosition::new(0, CHROME_HEIGHT).into(),
-            size: WryLogicalSize::new(self.window_width, self.window_height.saturating_sub(CHROME_HEIGHT)).into(),
+            position: LogicalPosition::new(SIDEBAR_WIDTH, 0).into(),
+            size: WryLogicalSize::new(self.window_width.saturating_sub(SIDEBAR_WIDTH), self.window_height).into(),
         }
     }
 
     fn chrome_bounds(&self) -> Rect {
         Rect {
             position: LogicalPosition::new(0, 0).into(),
-            size: WryLogicalSize::new(self.window_width, CHROME_HEIGHT).into(),
+            size: WryLogicalSize::new(SIDEBAR_WIDTH, self.window_height).into(),
         }
     }
 
@@ -316,21 +316,9 @@ fn setup_macos_edit_menu() {
 pub fn run() {
     let event_loop = EventLoop::new();
 
-    let mut builder = WindowBuilder::new()
-        .with_title("")
+    let window = WindowBuilder::new()
+        .with_title("Light")
         .with_inner_size(LogicalSize::new(1280u32, 800u32))
-        .with_resizable(true);
-
-    #[cfg(target_os = "macos")]
-    {
-        use tao::platform::macos::WindowBuilderExtMacOS;
-        builder = builder
-            .with_titlebar_transparent(true)
-            .with_title_hidden(true)
-            .with_fullsize_content_view(true);
-    }
-
-    let window = builder
         .build(&event_loop)
         .unwrap();
 
@@ -346,11 +334,11 @@ pub fn run() {
     let (tx, rx) = mpsc::channel::<String>();
     let engine_tx = tx.clone();
 
-    // Chrome webview at the top (tao uses top-left origin)
+    // Chrome sidebar on the left
     let chrome = WebViewBuilder::new()
         .with_bounds(Rect {
             position: LogicalPosition::new(0, 0).into(),
-            size: WryLogicalSize::new(size.width, CHROME_HEIGHT).into(),
+            size: WryLogicalSize::new(SIDEBAR_WIDTH, size.height).into(),
         })
         .with_html(&chrome_html())
         .with_ipc_handler(move |req| {

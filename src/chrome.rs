@@ -1,5 +1,5 @@
-/// Returns the HTML string for the browser chrome (tab bar + nav bar + bookmarks bar).
-/// Styled to match mainstream browser conventions (Chrome-like).
+/// Returns the HTML string for the browser sidebar chrome.
+/// Vertical layout: nav controls, address bar, tabs, bookmarks, menu.
 pub fn chrome_html() -> String {
     r##"<!DOCTYPE html>
 <html>
@@ -7,45 +7,119 @@ pub fn chrome_html() -> String {
 <meta charset="utf-8">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  *::selection { background: transparent; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 12px;
-    background: #202124;
+    background: #1e1e1e;
     color: #e8eaed;
     user-select: none;
     overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 
-  /* Tab bar — Chrome-style */
-  #tab-bar {
+  /* Nav controls */
+  #nav-controls {
     display: flex;
-    align-items: flex-end;
-    height: 36px;
-    background: #202124;
-    padding: 0 8px 0 72px;
-    gap: 0;
+    align-items: center;
+    padding: 8px 8px 4px;
+    gap: 2px;
+    flex-shrink: 0;
   }
-  #tabs-container {
+  .nav-btn {
+    width: 28px;
+    height: 28px;
     display: flex;
-    align-items: flex-end;
-    gap: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #9aa0a6;
+    background: none;
+    border: none;
+    transition: background 0.1s;
+  }
+  .nav-btn:hover { background: #35363a; color: #e8eaed; }
+
+  /* Address bar */
+  #address-section {
+    padding: 4px 8px;
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  #address-bar {
     flex: 1;
-    overflow: hidden;
+    height: 28px;
+    background: #292b2e;
+    border: 1px solid #3c3c3c;
+    border-radius: 8px;
+    padding: 0 10px;
+    color: #e8eaed;
+    font-size: 12px;
+    outline: none;
   }
+  #address-bar:focus {
+    border-color: #8ab4f8;
+    box-shadow: 0 0 0 1px #8ab4f8;
+  }
+  #bookmark-btn, #menu-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #9aa0a6;
+    background: none;
+    border: none;
+    flex-shrink: 0;
+  }
+  #bookmark-btn:hover, #menu-btn:hover { background: #35363a; }
+  #bookmark-btn.bookmarked { color: #8ab4f8; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: #35363a;
+    margin: 4px 8px;
+    flex-shrink: 0;
+  }
+
+  /* Section label */
+  .section-label {
+    font-size: 10px;
+    color: #6e6e6e;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 6px 12px 4px;
+    flex-shrink: 0;
+  }
+
+  /* Tabs list */
+  #tabs-section {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+  }
+  #tabs-section::-webkit-scrollbar { width: 4px; }
+  #tabs-section::-webkit-scrollbar-thumb { background: #3c3c3c; border-radius: 2px; }
   .tab {
     display: flex;
     align-items: center;
     height: 32px;
     padding: 0 8px 0 12px;
-    background: transparent;
-    border-radius: 8px 8px 0 0;
     cursor: pointer;
-    max-width: 240px;
-    min-width: 40px;
-    font-size: 12px;
     color: #9aa0a6;
     transition: background 0.1s;
-    position: relative;
+    border-radius: 6px;
+    margin: 1px 6px;
   }
   .tab:hover { background: #292b2e; }
   .tab.active { background: #35363a; color: #e8eaed; }
@@ -54,16 +128,16 @@ pub fn chrome_html() -> String {
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
-    padding-right: 4px;
+    font-size: 12px;
   }
   .tab-close {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 11px;
     color: #9aa0a6;
     cursor: pointer;
     opacity: 0;
@@ -72,113 +146,62 @@ pub fn chrome_html() -> String {
   }
   .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
   .tab-close:hover { background: #5f6368; color: #fff; }
-  .tab-close::selection { background: transparent; }
-  .tab-title::selection { background: transparent; }
+
   #new-tab-btn {
-    width: 28px;
-    height: 28px;
     display: flex;
     align-items: center;
-    justify-content: center;
-    border-radius: 50%;
+    height: 30px;
+    padding: 0 12px;
     cursor: pointer;
-    font-size: 18px;
     color: #9aa0a6;
+    font-size: 12px;
+    gap: 6px;
+    margin: 2px 6px;
+    border-radius: 6px;
     flex-shrink: 0;
-    margin-left: 4px;
-    margin-bottom: 2px;
   }
-  #new-tab-btn:hover { background: #35363a; }
+  #new-tab-btn:hover { background: #292b2e; color: #e8eaed; }
+  #new-tab-btn .plus { font-size: 16px; }
 
-  /* Nav bar */
-  #nav-bar {
-    display: flex;
-    align-items: center;
-    height: 34px;
-    background: #35363a;
-    padding: 0 8px;
-    gap: 4px;
-  }
-  .nav-btn {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 13px;
-    color: #9aa0a6;
-    background: none;
-    border: none;
+  /* Bookmarks section */
+  #bookmarks-section {
+    max-height: 150px;
+    overflow-y: auto;
+    overflow-x: hidden;
     flex-shrink: 0;
-    transition: background 0.1s;
   }
-  .nav-btn:hover { background: #4a4b4f; color: #e8eaed; }
-  .nav-btn:active { background: #5f6368; }
-  #address-bar {
+  #bookmarks-section::-webkit-scrollbar { width: 4px; }
+  #bookmarks-section::-webkit-scrollbar-thumb { background: #3c3c3c; border-radius: 2px; }
+  .bookmark-item {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 12px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #bdc1c6;
+    border-radius: 6px;
+    margin: 1px 6px;
+  }
+  .bookmark-item:hover { background: #292b2e; color: #e8eaed; }
+  .bm-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     flex: 1;
-    height: 28px;
-    background: #202124;
-    border: none;
-    border-radius: 14px;
-    padding: 0 14px;
-    color: #e8eaed;
-    font-size: 13px;
-    outline: none;
-    transition: background 0.2s;
   }
-  #address-bar:focus {
-    background: #292b2e;
-    box-shadow: 0 0 0 2px #8ab4f8;
-  }
-  #address-bar::selection { background: #3c6db5; }
-  #bookmark-btn {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 16px;
-    color: #9aa0a6;
-    background: none;
-    border: none;
-    flex-shrink: 0;
-    transition: background 0.1s;
-  }
-  #bookmark-btn:hover { background: #4a4b4f; }
-  #bookmark-btn.bookmarked { color: #8ab4f8; }
 
-  /* Menu button & dropdown */
-  #menu-btn {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 16px;
-    color: #9aa0a6;
-    background: none;
-    border: none;
-    flex-shrink: 0;
-    transition: background 0.1s;
-    position: relative;
-  }
-  #menu-btn:hover { background: #4a4b4f; }
+  /* Menu dropdown */
   #menu-dropdown {
     display: none;
     position: absolute;
-    top: 32px;
-    right: 8px;
+    bottom: 40px;
+    left: 8px;
     background: #292b2e;
     border: 1px solid #3c3c3c;
     border-radius: 8px;
     padding: 4px 0;
-    min-width: 180px;
+    min-width: 160px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
     z-index: 100;
   }
@@ -186,59 +209,56 @@ pub fn chrome_html() -> String {
   .menu-item {
     display: flex;
     align-items: center;
-    height: 32px;
-    padding: 0 16px;
+    height: 30px;
+    padding: 0 14px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
     color: #e8eaed;
-    gap: 10px;
+    gap: 8px;
   }
   .menu-item:hover { background: #3c3c3c; }
-  .menu-item .icon { color: #9aa0a6; font-size: 14px; width: 18px; text-align: center; }
-  .menu-separator { height: 1px; background: #3c3c3c; margin: 4px 0; }
+  .menu-item .icon { color: #9aa0a6; font-size: 13px; width: 16px; text-align: center; }
 
-  /* Bookmarks bar */
-  #bookmarks-bar {
-    display: none;
-    align-items: center;
-    height: 28px;
-    background: #292b2e;
-    padding: 0 8px;
-    gap: 2px;
-    overflow: hidden;
-  }
-  #bookmarks-bar.visible { display: flex; }
-  .bookmark-item {
+  /* Bottom bar */
+  #bottom-bar {
     display: flex;
     align-items: center;
-    height: 22px;
-    padding: 0 10px;
-    background: transparent;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 11px;
-    color: #bdc1c6;
-    white-space: nowrap;
-    transition: background 0.1s;
+    padding: 6px 8px;
+    gap: 4px;
+    flex-shrink: 0;
+    border-top: 1px solid #35363a;
   }
-  .bookmark-item:hover { background: #3c3c3c; color: #e8eaed; }
 </style>
 </head>
 <body>
 
-<div id="tab-bar" onmousedown="handleTabBarDrag(event)">
-  <div id="tabs-container"></div>
-  <div id="new-tab-btn" onclick="send({type:'NewTab'})">+</div>
-</div>
-
-<div id="nav-bar">
+<div id="nav-controls">
   <button class="nav-btn" onclick="send({type:'GoBack'})">&#9664;</button>
   <button class="nav-btn" onclick="send({type:'GoForward'})">&#9654;</button>
   <button class="nav-btn" onclick="send({type:'Reload'})">&#8635;</button>
+</div>
+
+<div id="address-section">
   <input id="address-bar" type="text" spellcheck="false"
          onkeydown="if(event.key==='Enter'){send({type:'Navigate',url:this.value})}">
-  <button id="bookmark-btn" onclick="toggleBookmark()" title="Bookmark this page">&#9734;</button>
-  <button id="menu-btn" onclick="toggleMenu(event)">&#8942;</button>
+  <button id="bookmark-btn" onclick="toggleBookmark()" title="Bookmark">&#9734;</button>
+</div>
+
+<div class="divider"></div>
+<div class="section-label">Tabs</div>
+
+<div id="tabs-section"></div>
+
+<div id="new-tab-btn" onclick="send({type:'NewTab'})">
+  <span class="plus">+</span> New Tab
+</div>
+
+<div class="divider"></div>
+<div class="section-label" id="bookmarks-label" style="display:none">Bookmarks</div>
+<div id="bookmarks-section"></div>
+
+<div id="bottom-bar">
+  <button id="menu-btn" onclick="toggleMenu(event)" title="Menu">&#8942;</button>
 </div>
 
 <div id="menu-dropdown">
@@ -246,15 +266,12 @@ pub fn chrome_html() -> String {
   <div class="menu-item" onclick="send({type:'OpenSettings'});closeMenu()"><span class="icon">&#9881;</span>Settings</div>
 </div>
 
-<div id="bookmarks-bar"></div>
-
 <script>
   let tabs = [];
   let activeId = null;
-  let dragSrcIdx = null;
   let bookmarks = [];
   let currentUrl = '';
-  let bookmarksBarVisible = true;
+  let bookmarksVisible = true;
 
   function send(msg) {
     window.ipc.postMessage(JSON.stringify(msg));
@@ -266,7 +283,7 @@ pub fn chrome_html() -> String {
       switch (e.key) {
         case 't': e.preventDefault(); send({type:'NewTab'}); break;
         case 'w': e.preventDefault(); send({type:'CloseTab', id: activeId}); break;
-        case 'l': e.preventDefault(); send({type:'FocusAddressBar'}); handleMessage({type:'FocusAddressBar'}); break;
+        case 'l': e.preventDefault(); handleMessage({type:'FocusAddressBar'}); break;
         case 'r': e.preventDefault(); send({type:'Reload'}); break;
       }
     }
@@ -283,54 +300,37 @@ pub fn chrome_html() -> String {
 
   document.addEventListener('click', closeMenu);
 
-  function handleTabBarDrag(e) {
-    // Only drag when clicking the tab bar background, not tabs or buttons
-    if (e.target.id === 'tab-bar') {
-      send({type:'DragWindow'});
-    }
-  }
-
   function renderTabs() {
-    const container = document.getElementById('tabs-container');
+    const container = document.getElementById('tabs-section');
     container.innerHTML = '';
     tabs.forEach((tab, idx) => {
       const el = document.createElement('div');
       el.className = 'tab' + (tab.id === activeId ? ' active' : '');
-      el.draggable = true;
       el.innerHTML = '<span class="tab-title">' + escapeHtml(tab.title) + '</span>'
                    + '<span class="tab-close" onclick="event.stopPropagation();send({type:\'CloseTab\',id:' + tab.id + '})">&#215;</span>';
       el.onclick = () => send({type:'SwitchTab', id: tab.id});
-      el.ondragstart = (e) => { dragSrcIdx = idx; e.dataTransfer.effectAllowed = 'move'; };
-      el.ondragover = (e) => e.preventDefault();
-      el.ondrop = (e) => {
-        e.preventDefault();
-        if (dragSrcIdx !== null && dragSrcIdx !== idx) {
-          send({type:'ReorderTab', from: dragSrcIdx, to: idx});
-        }
-        dragSrcIdx = null;
-      };
       container.appendChild(el);
     });
   }
 
   function renderBookmarks() {
-    const bar = document.getElementById('bookmarks-bar');
-    bar.innerHTML = '';
-    if (bookmarks.length === 0) {
-      bar.classList.remove('visible');
+    const section = document.getElementById('bookmarks-section');
+    const label = document.getElementById('bookmarks-label');
+    section.innerHTML = '';
+    if (bookmarks.length === 0 || !bookmarksVisible) {
+      section.style.display = 'none';
+      label.style.display = 'none';
       return;
     }
-    bar.classList.add('visible');
+    section.style.display = 'block';
+    label.style.display = 'block';
     bookmarks.forEach(bm => {
       const el = document.createElement('div');
       el.className = 'bookmark-item';
-      el.textContent = bm.name;
+      el.innerHTML = '<span class="bm-name">' + escapeHtml(bm.name) + '</span>';
       el.onclick = () => send({type:'Navigate', url: bm.url});
-      el.oncontextmenu = (e) => {
-        e.preventDefault();
-        send({type:'RemoveBookmark', url: bm.url});
-      };
-      bar.appendChild(el);
+      el.oncontextmenu = (e) => { e.preventDefault(); send({type:'RemoveBookmark', url: bm.url}); };
+      section.appendChild(el);
     });
     updateBookmarkBtn();
   }
