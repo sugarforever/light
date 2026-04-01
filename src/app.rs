@@ -318,7 +318,8 @@ pub fn run() {
 
     let mut builder = WindowBuilder::new()
         .with_title("")
-        .with_inner_size(LogicalSize::new(1280u32, 800u32));
+        .with_inner_size(LogicalSize::new(1280u32, 800u32))
+        .with_resizable(true);
 
     #[cfg(target_os = "macos")]
     {
