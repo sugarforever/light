@@ -26,6 +26,7 @@ const CHROME_HEIGHT: u32 = 98; // tab bar (36) + nav bar (34) + bookmarks bar (2
 const FALLBACK_URL: &str = "about:blank";
 
 struct AppState {
+    window: &'static tao::window::Window,
     chrome_webview: Option<WebView>,
     engine: Option<WryEngine<'static>>,
     tabs: TabManager,
@@ -151,6 +152,9 @@ impl AppState {
                 s.default_url = default_url.clone();
                 settings::save(&s);
                 self.default_url = default_url;
+            }
+            ipc::ChromeToApp::DragWindow => {
+                let _ = self.window.drag_window();
             }
             ipc::ChromeToApp::PageInfo { tab_id, title, url } => {
                 let id = TabId(tab_id);
@@ -339,6 +343,7 @@ pub fn run() {
     let default_url = user_settings.default_url.clone();
 
     let mut state = AppState {
+        window,
         chrome_webview: Some(chrome),
         engine: Some(WryEngine::new(window, engine_tx)),
         tabs: TabManager::new(),

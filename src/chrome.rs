@@ -24,7 +24,6 @@ pub fn chrome_html() -> String {
     background: #202124;
     padding: 0 8px 0 72px;
     gap: 0;
-    -webkit-app-region: drag;
   }
   #tabs-container {
     display: flex;
@@ -32,7 +31,6 @@ pub fn chrome_html() -> String {
     gap: 0;
     flex: 1;
     overflow: hidden;
-    -webkit-app-region: no-drag;
   }
   .tab {
     display: flex;
@@ -48,7 +46,6 @@ pub fn chrome_html() -> String {
     color: #9aa0a6;
     transition: background 0.1s;
     position: relative;
-    -webkit-app-region: no-drag;
   }
   .tab:hover { background: #292b2e; }
   .tab.active { background: #35363a; color: #e8eaed; }
@@ -88,7 +85,6 @@ pub fn chrome_html() -> String {
     flex-shrink: 0;
     margin-left: 4px;
     margin-bottom: 2px;
-    -webkit-app-region: no-drag;
   }
   #new-tab-btn:hover { background: #35363a; }
 
@@ -228,7 +224,7 @@ pub fn chrome_html() -> String {
 </head>
 <body>
 
-<div id="tab-bar">
+<div id="tab-bar" onmousedown="handleTabBarDrag(event)">
   <div id="tabs-container"></div>
   <div id="new-tab-btn" onclick="send({type:'NewTab'})">+</div>
 </div>
@@ -272,6 +268,13 @@ pub fn chrome_html() -> String {
   }
 
   document.addEventListener('click', closeMenu);
+
+  function handleTabBarDrag(e) {
+    // Only drag when clicking the tab bar background, not tabs or buttons
+    if (e.target.id === 'tab-bar') {
+      send({type:'DragWindow'});
+    }
+  }
 
   function renderTabs() {
     const container = document.getElementById('tabs-container');
