@@ -311,9 +311,20 @@ fn setup_macos_edit_menu() {
 pub fn run() {
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("Light")
-        .with_inner_size(LogicalSize::new(1280u32, 800u32))
+    let mut builder = WindowBuilder::new()
+        .with_title("")
+        .with_inner_size(LogicalSize::new(1280u32, 800u32));
+
+    #[cfg(target_os = "macos")]
+    {
+        use tao::platform::macos::WindowBuilderExtMacOS;
+        builder = builder
+            .with_titlebar_transparent(true)
+            .with_fullsize_content_view(true)
+            .with_movable_by_window_background(true);
+    }
+
+    let window = builder
         .build(&event_loop)
         .unwrap();
 
