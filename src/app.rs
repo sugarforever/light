@@ -35,14 +35,14 @@ struct AppState {
 impl AppState {
     fn content_bounds(&self) -> Rect {
         Rect {
-            position: LogicalPosition::new(0, 0).into(),
+            position: LogicalPosition::new(0, CHROME_HEIGHT).into(),
             size: WryLogicalSize::new(self.window_width, self.window_height.saturating_sub(CHROME_HEIGHT)).into(),
         }
     }
 
     fn chrome_bounds(&self) -> Rect {
         Rect {
-            position: LogicalPosition::new(0, self.window_height.saturating_sub(CHROME_HEIGHT)).into(),
+            position: LogicalPosition::new(0, 0).into(),
             size: WryLogicalSize::new(self.window_width, CHROME_HEIGHT).into(),
         }
     }
@@ -243,11 +243,10 @@ pub fn run() {
     // IPC channel
     let (tx, rx) = mpsc::channel::<String>();
 
-    // Chrome webview at the top
-    let chrome_y = size.height.saturating_sub(CHROME_HEIGHT);
+    // Chrome webview at the top (tao uses top-left origin)
     let chrome = WebViewBuilder::new()
         .with_bounds(Rect {
-            position: LogicalPosition::new(0, chrome_y).into(),
+            position: LogicalPosition::new(0, 0).into(),
             size: WryLogicalSize::new(size.width, CHROME_HEIGHT).into(),
         })
         .with_html(&chrome_html())
