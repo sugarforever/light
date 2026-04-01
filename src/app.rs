@@ -23,13 +23,14 @@ use crate::tab::{TabId, TabManager};
 use crate::url::normalize_url;
 
 const CHROME_HEIGHT: u32 = 98; // tab bar (36) + nav bar (34) + bookmarks bar (28)
-const DEFAULT_URL: &str = "about:blank";
+const FALLBACK_URL: &str = "about:blank";
 
 struct AppState {
     chrome_webview: Option<WebView>,
     engine: Option<WryEngine<'static>>,
     tabs: TabManager,
     bookmarks: Vec<Bookmark>,
+    default_url: String,
     modifiers: ModifiersState,
     ipc_receiver: Option<mpsc::Receiver<String>>,
     window_width: u32,
@@ -87,7 +88,10 @@ impl AppState {
                     });
                 }
             }
-            ipc::ChromeToApp::NewTab => self.create_tab(DEFAULT_URL),
+            ipc::ChromeToApp::NewTab => {
+                let url = self.default_url.clone();
+                self.create_tab(&url);
+            }
             ipc::ChromeToApp::CloseTab { id } => self.close_tab(TabId(id)),
             ipc::ChromeToApp::SwitchTab { id } => self.switch_tab(TabId(id)),
             ipc::ChromeToApp::GoBack => {
@@ -144,8 +148,9 @@ impl AppState {
             }
             ipc::ChromeToApp::SaveSettings { default_url } => {
                 let mut s = settings::load();
-                s.default_url = default_url;
+                s.default_url = default_url.clone();
                 settings::save(&s);
+                self.default_url = default_url;
             }
             ipc::ChromeToApp::PageInfo { tab_id, title, url } => {
                 let id = TabId(tab_id);
@@ -330,12 +335,15 @@ pub fn run() {
         .unwrap();
 
     let user_bookmarks = bookmarks::load();
+    let user_settings = settings::load();
+    let default_url = user_settings.default_url.clone();
 
     let mut state = AppState {
         chrome_webview: Some(chrome),
         engine: Some(WryEngine::new(window, engine_tx)),
         tabs: TabManager::new(),
         bookmarks: user_bookmarks,
+        default_url: default_url.clone(),
         modifiers: ModifiersState::empty(),
         ipc_receiver: Some(rx),
         window_width: size.width,
@@ -343,8 +351,7 @@ pub fn run() {
     };
 
     // Open default tab from settings
-    let user_settings = settings::load();
-    state.create_tab(&user_settings.default_url);
+    state.create_tab(&default_url);
     state.sync_bookmarks();
 
     event_loop.run(move |event, _, control_flow| {
@@ -368,7 +375,10 @@ pub fn run() {
                 WindowEvent::KeyboardInput { event, .. } => {
                     if let Some(shortcut) = keys::detect_shortcut_tao(&state.modifiers, &event) {
                         match shortcut {
-                            Shortcut::NewTab => state.create_tab(DEFAULT_URL),
+                            Shortcut::NewTab => {
+                                let url = state.default_url.clone();
+                                state.create_tab(&url);
+                            }
                             Shortcut::CloseTab => {
                                 if let Some(id) = state.tabs.active_id() {
                                     state.close_tab(id);
