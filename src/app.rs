@@ -292,6 +292,27 @@ impl AppState {
 }
 
 #[cfg(target_os = "macos")]
+fn setup_macos_icon() {
+    use objc2_app_kit::NSApp;
+    use objc2_foundation::{MainThreadMarker, NSData};
+
+    static ICON_PNG: &[u8] = include_bytes!("../assets/AppIcon-256.png");
+
+    let mtm = unsafe { MainThreadMarker::new_unchecked() };
+    unsafe {
+        let data = NSData::with_bytes(ICON_PNG);
+        // Use msg_send since NSImage is MainThreadOnly and alloc() isn't available
+        let cls = objc2::runtime::AnyClass::get("NSImage").unwrap();
+        let image: *mut objc2::runtime::AnyObject = objc2::msg_send![cls, alloc];
+        let image: *mut objc2::runtime::AnyObject = objc2::msg_send![image, initWithData: &*data];
+        if !image.is_null() {
+            let app = NSApp(mtm);
+            let _: () = objc2::msg_send![&*app, setApplicationIconImage: image];
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
 fn setup_macos_edit_menu() {
     use objc2_app_kit::{NSApp, NSMenu, NSMenuItem};
     use objc2_foundation::{MainThreadMarker, NSString};
@@ -347,9 +368,12 @@ pub fn run() {
     let window: &'static tao::window::Window = Box::leak(Box::new(window));
     let size = window.inner_size().to_logical::<u32>(window.scale_factor());
 
-    // Set up macOS Edit menu
+    // Set up macOS icon and Edit menu
     #[cfg(target_os = "macos")]
-    setup_macos_edit_menu();
+    {
+        setup_macos_icon();
+        setup_macos_edit_menu();
+    }
 
     // IPC channel
     let (tx, rx) = mpsc::channel::<String>();
