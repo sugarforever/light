@@ -59,9 +59,21 @@ impl App {
             .window()
             .inner_size()
             .to_logical::<u32>(self.window().scale_factor());
+        // macOS uses bottom-left origin: y=0 is bottom of window
         Rect {
-            position: LogicalPosition::new(0, CHROME_HEIGHT).into(),
+            position: LogicalPosition::new(0, 0).into(),
             size: LogicalSize::new(size.width, size.height.saturating_sub(CHROME_HEIGHT)).into(),
+        }
+    }
+
+    fn chrome_bounds(&self) -> Rect {
+        let size = self
+            .window()
+            .inner_size()
+            .to_logical::<u32>(self.window().scale_factor());
+        Rect {
+            position: LogicalPosition::new(0, size.height.saturating_sub(CHROME_HEIGHT)).into(),
+            size: LogicalSize::new(size.width, CHROME_HEIGHT).into(),
         }
     }
 
@@ -207,14 +219,7 @@ impl App {
             }
         }
         if let Some(chrome) = &self.chrome_webview {
-            let size = self
-                .window()
-                .inner_size()
-                .to_logical::<u32>(self.window().scale_factor());
-            let _ = chrome.set_bounds(Rect {
-                position: LogicalPosition::new(0, 0).into(),
-                size: LogicalSize::new(size.width, CHROME_HEIGHT).into(),
-            });
+            let _ = chrome.set_bounds(self.chrome_bounds());
         }
     }
 }
@@ -235,10 +240,11 @@ impl ApplicationHandler for App {
         let (tx, rx) = mpsc::channel::<String>();
         self.ipc_receiver = Some(rx);
 
-        // Create chrome webview at the top
+        // Create chrome webview at the top (macOS y=0 is bottom, so chrome goes at top)
+        let chrome_y = size.height.saturating_sub(CHROME_HEIGHT);
         let chrome = WebViewBuilder::new()
             .with_bounds(Rect {
-                position: LogicalPosition::new(0, 0).into(),
+                position: LogicalPosition::new(0, chrome_y).into(),
                 size: LogicalSize::new(size.width, CHROME_HEIGHT).into(),
             })
             .with_html(&chrome_html())
