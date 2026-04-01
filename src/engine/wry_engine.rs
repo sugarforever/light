@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use winit::window::Window;
+use tao::window::Window;
 use wry::{Rect, WebView, WebViewBuilder};
 
 use crate::engine::{EngineResult, WebEngine};

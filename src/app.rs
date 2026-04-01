@@ -1,18 +1,13 @@
 use std::sync::mpsc;
-use winit::{
-    application::ApplicationHandler,
-    event::WindowEvent,
-    event_loop::ActiveEventLoop,
+use tao::{
+    dpi::LogicalSize,
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
     keyboard::ModifiersState,
-    window::{Window, WindowId},
+    window::WindowBuilder,
 };
-
-#[cfg(target_os = "macos")]
-use objc2_app_kit::{NSApp, NSMenu, NSMenuItem};
-#[cfg(target_os = "macos")]
-use objc2_foundation::{MainThreadMarker, NSString};
 use wry::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{LogicalPosition, LogicalSize as WryLogicalSize},
     Rect, WebView, WebViewBuilder,
 };
 
@@ -27,53 +22,28 @@ use crate::url::normalize_url;
 const CHROME_HEIGHT: u32 = 70;
 const DEFAULT_URL: &str = "about:blank";
 
-pub struct App {
-    window: Option<&'static Window>,
+struct AppState {
     chrome_webview: Option<WebView>,
     engine: Option<WryEngine<'static>>,
     tabs: TabManager,
     modifiers: ModifiersState,
     ipc_receiver: Option<mpsc::Receiver<String>>,
+    window_width: u32,
+    window_height: u32,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            window: None,
-            chrome_webview: None,
-            engine: None,
-            tabs: TabManager::new(),
-            modifiers: ModifiersState::empty(),
-            ipc_receiver: None,
-        }
-    }
-}
-
-impl App {
-    fn window(&self) -> &Window {
-        self.window.expect("window not initialized")
-    }
-
+impl AppState {
     fn content_bounds(&self) -> Rect {
-        let size = self
-            .window()
-            .inner_size()
-            .to_logical::<u32>(self.window().scale_factor());
-        // macOS uses bottom-left origin: y=0 is bottom of window
         Rect {
             position: LogicalPosition::new(0, 0).into(),
-            size: LogicalSize::new(size.width, size.height.saturating_sub(CHROME_HEIGHT)).into(),
+            size: WryLogicalSize::new(self.window_width, self.window_height.saturating_sub(CHROME_HEIGHT)).into(),
         }
     }
 
     fn chrome_bounds(&self) -> Rect {
-        let size = self
-            .window()
-            .inner_size()
-            .to_logical::<u32>(self.window().scale_factor());
         Rect {
-            position: LogicalPosition::new(0, size.height.saturating_sub(CHROME_HEIGHT)).into(),
-            size: LogicalSize::new(size.width, CHROME_HEIGHT).into(),
+            position: LogicalPosition::new(0, self.window_height.saturating_sub(CHROME_HEIGHT)).into(),
+            size: WryLogicalSize::new(self.window_width, CHROME_HEIGHT).into(),
         }
     }
 
@@ -84,9 +54,7 @@ impl App {
     }
 
     fn drain_ipc(&mut self) {
-        let Some(rx) = &self.ipc_receiver else {
-            return;
-        };
+        let Some(rx) = &self.ipc_receiver else { return };
         let mut messages = Vec::new();
         while let Ok(body) = rx.try_recv() {
             messages.push(body);
@@ -97,9 +65,7 @@ impl App {
     }
 
     fn handle_ipc(&mut self, body: &str) {
-        let Ok(msg) = ipc::parse_chrome_message(body) else {
-            return;
-        };
+        let Ok(msg) = ipc::parse_chrome_message(body) else { return };
 
         match msg {
             ipc::ChromeToApp::Navigate { url } => {
@@ -111,11 +77,7 @@ impl App {
                     self.tabs.update_url(id, url.clone());
                     self.send_to_chrome(&AppToChrome::TabUpdated {
                         id: id.0,
-                        title: self
-                            .tabs
-                            .active_tab()
-                            .map(|t| t.title.clone())
-                            .unwrap_or_default(),
+                        title: self.tabs.active_tab().map(|t| t.title.clone()).unwrap_or_default(),
                         url,
                         is_loading: true,
                     });
@@ -170,7 +132,6 @@ impl App {
             let _ = engine.close_webview(id);
         }
         let new_active = self.tabs.close_tab(id);
-
         self.send_to_chrome(&AppToChrome::TabClosed { id: id.0 });
 
         if let Some(new_id) = new_active {
@@ -196,17 +157,12 @@ impl App {
     }
 
     fn sync_all_tabs(&self) {
-        let tabs: Vec<TabInfo> = self
-            .tabs
-            .tabs()
-            .iter()
-            .map(|t| TabInfo {
-                id: t.id.0,
-                title: t.title.clone(),
-                url: t.url.clone(),
-                is_loading: t.is_loading,
-            })
-            .collect();
+        let tabs: Vec<TabInfo> = self.tabs.tabs().iter().map(|t| TabInfo {
+            id: t.id.0,
+            title: t.title.clone(),
+            url: t.url.clone(),
+            is_loading: t.is_loading,
+        }).collect();
         let active_id = self.tabs.active_id().map(|id| id.0).unwrap_or(0);
         self.send_to_chrome(&AppToChrome::AllTabs { tabs, active_id });
     }
@@ -224,127 +180,147 @@ impl App {
     }
 }
 
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let attrs = Window::default_attributes()
-            .with_title("Light")
-            .with_inner_size(LogicalSize::new(1280u32, 800u32));
-        let window = event_loop.create_window(attrs).unwrap();
+#[cfg(target_os = "macos")]
+fn setup_macos_edit_menu() {
+    use objc2_app_kit::{NSApp, NSMenu, NSMenuItem};
+    use objc2_foundation::{MainThreadMarker, NSString};
 
-        // Leak the window so we get a 'static reference for the engine and chrome webview
-        let window: &'static Window = Box::leak(Box::new(window));
+    let mtm = unsafe { MainThreadMarker::new_unchecked() };
+    unsafe {
+        let app = NSApp(mtm);
+        let menu_bar = NSMenu::new(mtm);
 
-        let size = window.inner_size().to_logical::<u32>(window.scale_factor());
+        // App menu (required as first item)
+        let app_menu = NSMenu::new(mtm);
+        let app_menu_item = NSMenuItem::new(mtm);
+        app_menu_item.setSubmenu(Some(&app_menu));
+        menu_bar.addItem(&app_menu_item);
 
-        // Set up IPC channel
-        let (tx, rx) = mpsc::channel::<String>();
-        self.ipc_receiver = Some(rx);
+        // Edit menu
+        let edit_menu = NSMenu::new(mtm);
+        edit_menu.setTitle(&NSString::from_str("Edit"));
+        let edit_menu_item = NSMenuItem::new(mtm);
+        edit_menu_item.setSubmenu(Some(&edit_menu));
 
-        // Create chrome webview at the top (macOS y=0 is bottom, so chrome goes at top)
-        let chrome_y = size.height.saturating_sub(CHROME_HEIGHT);
-        let chrome = WebViewBuilder::new()
-            .with_bounds(Rect {
-                position: LogicalPosition::new(0, chrome_y).into(),
-                size: LogicalSize::new(size.width, CHROME_HEIGHT).into(),
-            })
-            .with_html(&chrome_html())
-            .with_ipc_handler(move |req| {
-                let _ = tx.send(req.body().clone());
-            })
-            .with_focused(false)
-            .build_as_child(window)
-            .unwrap();
+        let make_item = |title: &str, action: objc2::runtime::Sel, key: &str| -> objc2::rc::Retained<NSMenuItem> {
+            let item = NSMenuItem::new(mtm);
+            item.setTitle(&NSString::from_str(title));
+            item.setAction(Some(action));
+            item.setKeyEquivalent(&NSString::from_str(key));
+            item
+        };
 
-        self.chrome_webview = Some(chrome);
-        self.window = Some(window);
-        self.engine = Some(WryEngine::new(window));
+        edit_menu.addItem(&make_item("Undo", objc2::sel!(undo:), "z"));
+        edit_menu.addItem(&make_item("Redo", objc2::sel!(redo:), "Z"));
+        edit_menu.addItem(&NSMenuItem::separatorItem(mtm));
+        edit_menu.addItem(&make_item("Cut", objc2::sel!(cut:), "x"));
+        edit_menu.addItem(&make_item("Copy", objc2::sel!(copy:), "c"));
+        edit_menu.addItem(&make_item("Paste", objc2::sel!(paste:), "v"));
+        edit_menu.addItem(&make_item("Select All", objc2::sel!(selectAll:), "a"));
 
-        // On macOS, add a native Edit menu so Cmd+A/C/V/X work in webviews
-        #[cfg(target_os = "macos")]
-        {
-            let mtm = unsafe { MainThreadMarker::new_unchecked() };
-            unsafe {
-                let app = NSApp(mtm);
-                let menu_bar = NSMenu::new(mtm);
-
-                // App menu (required as first item)
-                let app_menu = NSMenu::new(mtm);
-                let app_menu_item = NSMenuItem::new(mtm);
-                app_menu_item.setSubmenu(Some(&app_menu));
-                menu_bar.addItem(&app_menu_item);
-
-                // Edit menu
-                let edit_menu = NSMenu::new(mtm);
-                edit_menu.setTitle(&NSString::from_str("Edit"));
-                let edit_menu_item = NSMenuItem::new(mtm);
-                edit_menu_item.setSubmenu(Some(&edit_menu));
-
-                let make_item = |title: &str, action: objc2::runtime::Sel, key: &str| -> objc2::rc::Retained<NSMenuItem> {
-                    let item = NSMenuItem::new(mtm);
-                    item.setTitle(&NSString::from_str(title));
-                    item.setAction(Some(action));
-                    item.setKeyEquivalent(&NSString::from_str(key));
-                    item
-                };
-
-                edit_menu.addItem(&make_item("Undo", objc2::sel!(undo:), "z"));
-                edit_menu.addItem(&make_item("Redo", objc2::sel!(redo:), "Z"));
-                edit_menu.addItem(&NSMenuItem::separatorItem(mtm));
-                edit_menu.addItem(&make_item("Cut", objc2::sel!(cut:), "x"));
-                edit_menu.addItem(&make_item("Copy", objc2::sel!(copy:), "c"));
-                edit_menu.addItem(&make_item("Paste", objc2::sel!(paste:), "v"));
-                edit_menu.addItem(&make_item("Select All", objc2::sel!(selectAll:), "a"));
-
-                menu_bar.addItem(&edit_menu_item);
-                app.setMainMenu(Some(&menu_bar));
-            }
-        }
-
-        // Open default tab
-        self.create_tab("https://start.duckduckgo.com");
+        menu_bar.addItem(&edit_menu_item);
+        app.setMainMenu(Some(&menu_bar));
     }
+}
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+pub fn run() {
+    let event_loop = EventLoop::new();
+
+    let window = WindowBuilder::new()
+        .with_title("Light")
+        .with_inner_size(LogicalSize::new(1280u32, 800u32))
+        .build(&event_loop)
+        .unwrap();
+
+    // Leak window for 'static reference
+    let window: &'static tao::window::Window = Box::leak(Box::new(window));
+    let size = window.inner_size().to_logical::<u32>(window.scale_factor());
+
+    // Set up macOS Edit menu
+    #[cfg(target_os = "macos")]
+    setup_macos_edit_menu();
+
+    // IPC channel
+    let (tx, rx) = mpsc::channel::<String>();
+
+    // Chrome webview at the top
+    let chrome_y = size.height.saturating_sub(CHROME_HEIGHT);
+    let chrome = WebViewBuilder::new()
+        .with_bounds(Rect {
+            position: LogicalPosition::new(0, chrome_y).into(),
+            size: WryLogicalSize::new(size.width, CHROME_HEIGHT).into(),
+        })
+        .with_html(&chrome_html())
+        .with_ipc_handler(move |req| {
+            let _ = tx.send(req.body().clone());
+        })
+        .with_focused(false)
+        .build_as_child(window)
+        .unwrap();
+
+    let mut state = AppState {
+        chrome_webview: Some(chrome),
+        engine: Some(WryEngine::new(window)),
+        tabs: TabManager::new(),
+        modifiers: ModifiersState::empty(),
+        ipc_receiver: Some(rx),
+        window_width: size.width,
+        window_height: size.height,
+    };
+
+    // Open default tab
+    state.create_tab("https://start.duckduckgo.com");
+
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        // Drain IPC on every iteration
+        state.drain_ipc();
+
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(_) => self.resize_all_webviews(),
-            WindowEvent::ModifiersChanged(mods) => {
-                self.modifiers = mods.state();
-            }
-            WindowEvent::KeyboardInput { event, .. } => {
-                if let Some(shortcut) = keys::detect_shortcut(&self.modifiers, &event) {
-                    match shortcut {
-                        Shortcut::NewTab => self.create_tab(DEFAULT_URL),
-                        Shortcut::CloseTab => {
-                            if let Some(id) = self.tabs.active_id() {
-                                self.close_tab(id);
-                                if self.tabs.is_empty() {
-                                    event_loop.exit();
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::Resized(physical_size) => {
+                    let logical = physical_size.to_logical::<u32>(window.scale_factor());
+                    state.window_width = logical.width;
+                    state.window_height = logical.height;
+                    state.resize_all_webviews();
+                }
+                WindowEvent::ModifiersChanged(mods) => {
+                    state.modifiers = mods;
+                }
+                WindowEvent::KeyboardInput { event, .. } => {
+                    if let Some(shortcut) = keys::detect_shortcut_tao(&state.modifiers, &event) {
+                        match shortcut {
+                            Shortcut::NewTab => state.create_tab(DEFAULT_URL),
+                            Shortcut::CloseTab => {
+                                if let Some(id) = state.tabs.active_id() {
+                                    state.close_tab(id);
+                                    if state.tabs.is_empty() {
+                                        *control_flow = ControlFlow::Exit;
+                                    }
                                 }
                             }
-                        }
-                        Shortcut::FocusAddressBar => {
-                            if let Some(chrome) = &self.chrome_webview {
-                                let _ = chrome.evaluate_script(
-                                    "handleMessage({type:'FocusAddressBar'})",
-                                );
+                            Shortcut::FocusAddressBar => {
+                                if let Some(chrome) = &state.chrome_webview {
+                                    let _ = chrome.evaluate_script(
+                                        "handleMessage({type:'FocusAddressBar'})",
+                                    );
+                                }
                             }
-                        }
-                        Shortcut::Reload => {
-                            if let (Some(id), Some(engine)) =
-                                (self.tabs.active_id(), &self.engine)
-                            {
-                                let _ = engine.reload(id);
+                            Shortcut::Reload => {
+                                if let (Some(id), Some(engine)) =
+                                    (state.tabs.active_id(), &state.engine)
+                                {
+                                    let _ = engine.reload(id);
+                                }
                             }
                         }
                     }
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
-    }
-
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        self.drain_ipc();
-    }
+    });
 }
