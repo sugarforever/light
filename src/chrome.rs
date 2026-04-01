@@ -260,6 +260,18 @@ pub fn chrome_html() -> String {
     window.ipc.postMessage(JSON.stringify(msg));
   }
 
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey) {
+      switch (e.key) {
+        case 't': e.preventDefault(); send({type:'NewTab'}); break;
+        case 'w': e.preventDefault(); send({type:'CloseTab', id: activeId}); break;
+        case 'l': e.preventDefault(); send({type:'FocusAddressBar'}); handleMessage({type:'FocusAddressBar'}); break;
+        case 'r': e.preventDefault(); send({type:'Reload'}); break;
+      }
+    }
+  });
+
   function toggleMenu(e) {
     e.stopPropagation();
     document.getElementById('menu-dropdown').classList.toggle('visible');

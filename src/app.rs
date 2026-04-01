@@ -153,8 +153,13 @@ impl AppState {
                 settings::save(&s);
                 self.default_url = default_url;
             }
+            ipc::ChromeToApp::FocusAddressBar => {
+                if let Some(chrome) = &self.chrome_webview {
+                    let _ = chrome.evaluate_script("handleMessage({type:'FocusAddressBar'})");
+                }
+            }
             ipc::ChromeToApp::DragWindow => {
-                // Not used currently — native title bar handles dragging
+                let _ = self.window.drag_window();
             }
             ipc::ChromeToApp::PageInfo { tab_id, title, url } => {
                 let id = TabId(tab_id);

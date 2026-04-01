@@ -18,6 +18,7 @@ pub enum ChromeToApp {
     OpenSettings,
     SaveSettings { default_url: String },
     PageInfo { tab_id: u64, title: String, url: String },
+    FocusAddressBar,
     DragWindow,
 }
 

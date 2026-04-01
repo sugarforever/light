@@ -43,6 +43,7 @@ impl WebEngine for WryEngine<'_> {
             .with_initialization_script(&format!(
                 r#"
                 (function() {{
+                    // Page title/URL tracking
                     let lastTitle = '';
                     let lastUrl = '';
                     function check() {{
@@ -61,6 +62,19 @@ impl WebEngine for WryEngine<'_> {
                     setInterval(check, 1000);
                     window.addEventListener('load', check);
                     setTimeout(check, 500);
+
+                    // Keyboard shortcuts (Cmd/Ctrl + T/W/L/R)
+                    document.addEventListener('keydown', function(e) {{
+                        if (e.metaKey || e.ctrlKey) {{
+                            var k = e.key.toLowerCase();
+                            if (k === 't' || k === 'w' || k === 'l' || k === 'r') {{
+                                e.preventDefault();
+                                var msg = {{type: k === 't' ? 'NewTab' : k === 'w' ? 'CloseTab' : k === 'l' ? 'FocusAddressBar' : 'Reload'}};
+                                if (k === 'w') msg.id = {tab_id_val};
+                                window.ipc.postMessage(JSON.stringify(msg));
+                            }}
+                        }}
+                    }});
                 }})();
                 "#
             ))
