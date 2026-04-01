@@ -16,6 +16,8 @@ pub trait WebEngine {
 
     fn navigate(&self, tab_id: TabId, url: &str) -> EngineResult<()>;
 
+    fn load_html(&self, tab_id: TabId, html: &str) -> EngineResult<()>;
+
     fn go_back(&self, tab_id: TabId) -> EngineResult<()>;
 
     fn go_forward(&self, tab_id: TabId) -> EngineResult<()>;

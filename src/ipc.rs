@@ -14,6 +14,10 @@ pub enum ChromeToApp {
     ReorderTab { from: usize, to: usize },
     AddBookmark { name: String, url: String },
     RemoveBookmark { url: String },
+    ToggleBookmarksBar,
+    OpenSettings,
+    SaveSettings { default_url: String },
+    PageInfo { tab_id: u64, title: String, url: String },
 }
 
 /// Messages sent from Rust to the chrome webview via evaluate_script

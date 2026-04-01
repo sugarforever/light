@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::mpsc;
 use tao::window::Window;
 use wry::{Rect, WebView, WebViewBuilder};
 
@@ -10,13 +11,15 @@ const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebK
 pub struct WryEngine<'a> {
     window: &'a Window,
     webviews: HashMap<TabId, WebView>,
+    ipc_sender: mpsc::Sender<String>,
 }
 
 impl<'a> WryEngine<'a> {
-    pub fn new(window: &'a Window) -> Self {
+    pub fn new(window: &'a Window, ipc_sender: mpsc::Sender<String>) -> Self {
         Self {
             window,
             webviews: HashMap::new(),
+            ipc_sender,
         }
     }
 }
@@ -28,10 +31,39 @@ impl WebEngine for WryEngine<'_> {
         url: &str,
         bounds: Rect,
     ) -> EngineResult<()> {
+        let tx = self.ipc_sender.clone();
+        let tab_id_val = tab_id.0;
         let webview = WebViewBuilder::new()
             .with_bounds(bounds)
             .with_url(url)
             .with_user_agent(USER_AGENT)
+            .with_ipc_handler(move |req| {
+                let _ = tx.send(req.body().clone());
+            })
+            .with_initialization_script(&format!(
+                r#"
+                (function() {{
+                    let lastTitle = '';
+                    let lastUrl = '';
+                    function check() {{
+                        if (document.title !== lastTitle || location.href !== lastUrl) {{
+                            lastTitle = document.title;
+                            lastUrl = location.href;
+                            window.ipc.postMessage(JSON.stringify({{
+                                type: 'PageInfo',
+                                tab_id: {tab_id_val},
+                                title: document.title,
+                                url: location.href
+                            }}));
+                        }}
+                    }}
+                    new MutationObserver(check).observe(document.querySelector('head') || document.documentElement, {{subtree: true, childList: true, characterData: true}});
+                    setInterval(check, 1000);
+                    window.addEventListener('load', check);
+                    setTimeout(check, 500);
+                }})();
+                "#
+            ))
             .build_as_child(self.window)?;
         self.webviews.insert(tab_id, webview);
         Ok(())
@@ -45,6 +77,13 @@ impl WebEngine for WryEngine<'_> {
     fn navigate(&self, tab_id: TabId, url: &str) -> EngineResult<()> {
         if let Some(wv) = self.webviews.get(&tab_id) {
             wv.load_url(url)?;
+        }
+        Ok(())
+    }
+
+    fn load_html(&self, tab_id: TabId, html: &str) -> EngineResult<()> {
+        if let Some(wv) = self.webviews.get(&tab_id) {
+            wv.load_html(html)?;
         }
         Ok(())
     }

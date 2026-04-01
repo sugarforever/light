@@ -14,6 +14,7 @@ use wry::{
 use crate::bookmarks::{self, Bookmark};
 use crate::chrome::chrome_html;
 use crate::settings;
+use crate::settings_page;
 use crate::engine::wry_engine::WryEngine;
 use crate::engine::WebEngine;
 use crate::ipc::{self, AppToChrome, TabInfo};
@@ -115,6 +116,47 @@ impl AppState {
             ipc::ChromeToApp::RemoveBookmark { url } => {
                 bookmarks::remove(&mut self.bookmarks, &url);
                 self.sync_bookmarks();
+            }
+            ipc::ChromeToApp::ToggleBookmarksBar => {
+                if let Some(chrome) = &self.chrome_webview {
+                    let _ = chrome.evaluate_script(
+                        "bookmarksBarVisible = !bookmarksBarVisible; \
+                         document.getElementById('bookmarks-bar').classList.toggle('visible', bookmarksBarVisible && bookmarks.length > 0);"
+                    );
+                }
+            }
+            ipc::ChromeToApp::OpenSettings => {
+                let s = settings::load();
+                let html = settings_page::settings_html(&s.default_url);
+                self.create_tab("light://settings");
+                if let Some(id) = self.tabs.active_id() {
+                    if let Some(engine) = &self.engine {
+                        let _ = engine.load_html(id, &html);
+                    }
+                    self.tabs.update_title(id, "Settings".to_string());
+                    self.send_to_chrome(&AppToChrome::TabUpdated {
+                        id: id.0,
+                        title: "Settings".to_string(),
+                        url: "light://settings".to_string(),
+                        is_loading: false,
+                    });
+                }
+            }
+            ipc::ChromeToApp::SaveSettings { default_url } => {
+                let mut s = settings::load();
+                s.default_url = default_url;
+                settings::save(&s);
+            }
+            ipc::ChromeToApp::PageInfo { tab_id, title, url } => {
+                let id = TabId(tab_id);
+                self.tabs.update_title(id, title.clone());
+                self.tabs.update_url(id, url.clone());
+                self.send_to_chrome(&AppToChrome::TabUpdated {
+                    id: tab_id,
+                    title,
+                    url,
+                    is_loading: false,
+                });
             }
         }
     }
@@ -271,6 +313,7 @@ pub fn run() {
 
     // IPC channel
     let (tx, rx) = mpsc::channel::<String>();
+    let engine_tx = tx.clone();
 
     // Chrome webview at the top (tao uses top-left origin)
     let chrome = WebViewBuilder::new()
@@ -290,7 +333,7 @@ pub fn run() {
 
     let mut state = AppState {
         chrome_webview: Some(chrome),
-        engine: Some(WryEngine::new(window)),
+        engine: Some(WryEngine::new(window, engine_tx)),
         tabs: TabManager::new(),
         bookmarks: user_bookmarks,
         modifiers: ModifiersState::empty(),

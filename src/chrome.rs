@@ -153,6 +153,52 @@ pub fn chrome_html() -> String {
   #bookmark-btn:hover { background: #4a4b4f; }
   #bookmark-btn.bookmarked { color: #8ab4f8; }
 
+  /* Menu button & dropdown */
+  #menu-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    color: #9aa0a6;
+    background: none;
+    border: none;
+    flex-shrink: 0;
+    transition: background 0.1s;
+    position: relative;
+  }
+  #menu-btn:hover { background: #4a4b4f; }
+  #menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 32px;
+    right: 8px;
+    background: #292b2e;
+    border: 1px solid #3c3c3c;
+    border-radius: 8px;
+    padding: 4px 0;
+    min-width: 180px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    z-index: 100;
+  }
+  #menu-dropdown.visible { display: block; }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 16px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #e8eaed;
+    gap: 10px;
+  }
+  .menu-item:hover { background: #3c3c3c; }
+  .menu-item .icon { color: #9aa0a6; font-size: 14px; width: 18px; text-align: center; }
+  .menu-separator { height: 1px; background: #3c3c3c; margin: 4px 0; }
+
   /* Bookmarks bar */
   #bookmarks-bar {
     display: none;
@@ -194,6 +240,12 @@ pub fn chrome_html() -> String {
   <input id="address-bar" type="text" spellcheck="false"
          onkeydown="if(event.key==='Enter'){send({type:'Navigate',url:this.value})}">
   <button id="bookmark-btn" onclick="toggleBookmark()" title="Bookmark this page">&#9734;</button>
+  <button id="menu-btn" onclick="toggleMenu(event)">&#8942;</button>
+</div>
+
+<div id="menu-dropdown">
+  <div class="menu-item" onclick="send({type:'ToggleBookmarksBar'});closeMenu()"><span class="icon">&#9734;</span>Bookmarks</div>
+  <div class="menu-item" onclick="send({type:'OpenSettings'});closeMenu()"><span class="icon">&#9881;</span>Settings</div>
 </div>
 
 <div id="bookmarks-bar"></div>
@@ -204,10 +256,22 @@ pub fn chrome_html() -> String {
   let dragSrcIdx = null;
   let bookmarks = [];
   let currentUrl = '';
+  let bookmarksBarVisible = true;
 
   function send(msg) {
     window.ipc.postMessage(JSON.stringify(msg));
   }
+
+  function toggleMenu(e) {
+    e.stopPropagation();
+    document.getElementById('menu-dropdown').classList.toggle('visible');
+  }
+
+  function closeMenu() {
+    document.getElementById('menu-dropdown').classList.remove('visible');
+  }
+
+  document.addEventListener('click', closeMenu);
 
   function renderTabs() {
     const container = document.getElementById('tabs-container');
