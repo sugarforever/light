@@ -1,4 +1,4 @@
-/// Returns HTML for the settings page, pre-filled with current settings.
+/// Returns HTML for a polished settings page, pre-filled with current settings.
 pub fn settings_html(default_url: &str) -> String {
     let escaped = default_url.replace('"', "&quot;").replace('<', "&lt;");
     format!(
@@ -7,86 +7,233 @@ pub fn settings_html(default_url: &str) -> String {
 <head>
 <meta charset="utf-8">
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background: #202124;
     color: #e8eaed;
-    padding: 40px;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 48px 24px;
   }}
-  h1 {{
-    font-size: 24px;
-    font-weight: 400;
+
+  .settings-container {{
+    width: 100%;
+    max-width: 560px;
+  }}
+
+  /* Header */
+  .header {{
     margin-bottom: 32px;
+  }}
+  .header h1 {{
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
     color: #e8eaed;
+    margin-bottom: 6px;
   }}
-  .setting {{
-    margin-bottom: 24px;
-  }}
-  label {{
-    display: block;
+  .header p {{
     font-size: 13px;
     color: #9aa0a6;
-    margin-bottom: 8px;
+    font-weight: 400;
   }}
-  input[type="text"] {{
-    width: 100%;
-    max-width: 500px;
-    height: 36px;
+
+  /* Settings card */
+  .settings-card {{
     background: #292b2e;
     border: 1px solid #3c3c3c;
-    border-radius: 6px;
+    border-radius: 12px;
+    overflow: hidden;
+  }}
+
+  .setting-row {{
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    gap: 16px;
+    transition: background 0.15s;
+  }}
+  .setting-row:hover {{
+    background: #2f3134;
+  }}
+
+  .setting-icon {{
+    width: 36px;
+    height: 36px;
+    background: #35363a;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }}
+  .setting-icon svg {{
+    width: 18px;
+    height: 18px;
+    color: #8ab4f8;
+  }}
+
+  .setting-content {{
+    flex: 1;
+    min-width: 0;
+  }}
+  .setting-label {{
+    font-size: 13px;
+    font-weight: 500;
+    color: #e8eaed;
+    margin-bottom: 2px;
+  }}
+  .setting-description {{
+    font-size: 11px;
+    color: #9aa0a6;
+  }}
+
+  .setting-input {{
+    width: 100%;
+    height: 34px;
+    background: #202124;
+    border: 1px solid #3c3c3c;
+    border-radius: 8px;
     padding: 0 12px;
     color: #e8eaed;
-    font-size: 14px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
     outline: none;
+    margin-top: 10px;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }}
-  input[type="text"]:focus {{
+  .setting-input:focus {{
     border-color: #8ab4f8;
+    box-shadow: 0 0 0 3px rgba(138, 180, 248, 0.15);
   }}
-  button {{
-    height: 36px;
-    padding: 0 24px;
+
+  /* Actions */
+  .actions {{
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 16px 20px;
+    gap: 12px;
+    border-top: 1px solid #3c3c3c;
+  }}
+
+  .btn {{
+    height: 34px;
+    padding: 0 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+  }}
+
+  .btn-primary {{
     background: #8ab4f8;
     color: #202124;
-    border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    margin-top: 16px;
   }}
-  button:hover {{ background: #aecbfa; }}
-  .saved {{
-    color: #81c995;
+  .btn-primary:hover {{
+    background: #aecbfa;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(138, 180, 248, 0.3);
+  }}
+  .btn-primary:active {{
+    transform: translateY(0);
+  }}
+
+  /* Toast notification */
+  .toast {{
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: #35363a;
+    border: 1px solid #4a4b4f;
+    border-radius: 10px;
+    padding: 10px 20px;
     font-size: 13px;
-    margin-left: 12px;
-    display: none;
+    color: #e8eaed;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
   }}
-  .saved.show {{ display: inline; }}
+  .toast.show {{
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }}
+  .toast svg {{
+    width: 16px;
+    height: 16px;
+    color: #81c995;
+    flex-shrink: 0;
+  }}
+
+  /* Version info */
+  .version {{
+    text-align: center;
+    margin-top: 32px;
+    font-size: 11px;
+    color: #5f6368;
+  }}
 </style>
 </head>
 <body>
-  <h1>Settings</h1>
-  <div class="setting">
-    <label>Default page (opens when you launch Light)</label>
-    <input type="text" id="default-url" value="{escaped}" spellcheck="false">
-  </div>
-  <button onclick="save()">Save</button>
-  <span class="saved" id="saved-msg">Saved!</span>
 
-  <script>
-    function save() {{
-      const url = document.getElementById('default-url').value;
-      window.ipc.postMessage(JSON.stringify({{type:'SaveSettings', default_url: url}}));
-      const msg = document.getElementById('saved-msg');
-      msg.classList.add('show');
-      setTimeout(() => msg.classList.remove('show'), 2000);
-    }}
-    document.getElementById('default-url').addEventListener('keydown', (e) => {{
-      if (e.key === 'Enter') save();
-    }});
-  </script>
+<div class="settings-container">
+  <div class="header">
+    <h1>Settings</h1>
+    <p>Configure your Light browser preferences</p>
+  </div>
+
+  <div class="settings-card">
+    <div class="setting-row">
+      <div class="setting-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </div>
+      <div class="setting-content">
+        <div class="setting-label">Home page</div>
+        <div class="setting-description">Opens when you launch Light or create a new tab</div>
+        <input class="setting-input" type="text" id="default-url" value="{escaped}" spellcheck="false"
+               onkeydown="if(event.key==='Enter')save()">
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="save()">Save changes</button>
+    </div>
+  </div>
+
+  <div class="version">Light Browser v0.1.0</div>
+</div>
+
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 6L9 17l-5-5"/>
+  </svg>
+  Settings saved
+</div>
+
+<script>
+  function save() {{
+    const url = document.getElementById('default-url').value;
+    window.ipc.postMessage(JSON.stringify({{type:'SaveSettings', default_url: url}}));
+    const toast = document.getElementById('toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+  }}
+</script>
+
 </body>
 </html>"##
     )
