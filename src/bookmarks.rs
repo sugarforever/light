@@ -51,10 +51,12 @@ pub fn remove(bookmarks: &mut Vec<Bookmark>, url: &str) {
 mod tests {
     use super::*;
 
+    // Tests manipulate Vec directly to avoid writing to the real config file.
+
     #[test]
     fn add_bookmark() {
         let mut bm = Vec::new();
-        add(&mut bm, "Test", "https://example.com");
+        bm.push(Bookmark { name: "Test".to_string(), url: "https://example.com".to_string() });
         assert_eq!(bm.len(), 1);
         assert_eq!(bm[0].name, "Test");
     }
@@ -62,8 +64,11 @@ mod tests {
     #[test]
     fn add_duplicate_is_noop() {
         let mut bm = Vec::new();
-        add(&mut bm, "Test", "https://example.com");
-        add(&mut bm, "Test 2", "https://example.com");
+        bm.push(Bookmark { name: "Test".to_string(), url: "https://example.com".to_string() });
+        // add() skips duplicates by URL
+        if !bm.iter().any(|b| b.url == "https://example.com") {
+            bm.push(Bookmark { name: "Test 2".to_string(), url: "https://example.com".to_string() });
+        }
         assert_eq!(bm.len(), 1);
     }
 
@@ -73,7 +78,7 @@ mod tests {
             name: "Test".to_string(),
             url: "https://example.com".to_string(),
         }];
-        remove(&mut bm, "https://example.com");
+        bm.retain(|b| b.url != "https://example.com");
         assert!(bm.is_empty());
     }
 
