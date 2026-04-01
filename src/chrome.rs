@@ -1,6 +1,5 @@
 /// Returns the HTML string for the browser chrome (tab bar + nav bar).
-/// This is loaded into a small webview at the top of the window.
-/// It communicates with Rust via window.ipc.postMessage(JSON).
+/// Styled to match mainstream browser conventions (Chrome/Arc-like).
 pub fn chrome_html() -> String {
     r##"<!DOCTYPE html>
 <html>
@@ -9,88 +8,101 @@ pub fn chrome_html() -> String {
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    font-size: 13px;
-    background: #2b2b2b;
-    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    background: #202124;
+    color: #e8eaed;
     user-select: none;
     overflow: hidden;
   }
 
-  /* Tab bar */
+  /* Tab bar — Chrome-style */
   #tab-bar {
     display: flex;
-    align-items: center;
-    height: 34px;
-    background: #1e1e1e;
-    padding: 0 4px;
-    gap: 2px;
+    align-items: flex-end;
+    height: 36px;
+    background: #202124;
+    padding: 0 8px 0 72px; /* left padding for macOS traffic lights */
+    gap: 0;
+    -webkit-app-region: drag;
   }
   #tabs-container {
     display: flex;
-    align-items: center;
-    gap: 2px;
+    align-items: flex-end;
+    gap: 0;
     flex: 1;
     overflow: hidden;
+    -webkit-app-region: no-drag;
   }
   .tab {
     display: flex;
     align-items: center;
-    height: 28px;
-    padding: 0 12px;
-    background: #2b2b2b;
-    border-radius: 6px 6px 0 0;
+    height: 32px;
+    padding: 0 8px 0 12px;
+    background: transparent;
+    border-radius: 8px 8px 0 0;
     cursor: pointer;
-    max-width: 200px;
-    min-width: 60px;
+    max-width: 240px;
+    min-width: 40px;
     font-size: 12px;
-    color: #999;
-    transition: background 0.15s;
+    color: #9aa0a6;
+    transition: background 0.1s;
+    position: relative;
+    -webkit-app-region: no-drag;
   }
-  .tab:hover { background: #333; }
-  .tab.active { background: #3c3c3c; color: #fff; }
+  .tab:hover { background: #292b2e; }
+  .tab.active {
+    background: #35363a;
+    color: #e8eaed;
+  }
   .tab-title {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     flex: 1;
+    padding-right: 4px;
   }
   .tab-close {
-    margin-left: 6px;
     width: 16px;
     height: 16px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
-    color: #888;
+    font-size: 10px;
+    color: #9aa0a6;
     cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.1s;
+    flex-shrink: 0;
   }
-  .tab-close:hover { background: #555; color: #fff; }
+  .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
+  .tab-close:hover { background: #5f6368; color: #fff; }
   #new-tab-btn {
     width: 28px;
     height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: 50%;
     cursor: pointer;
-    font-size: 16px;
-    color: #888;
+    font-size: 18px;
+    color: #9aa0a6;
     flex-shrink: 0;
+    margin-left: 4px;
+    margin-bottom: 2px;
+    -webkit-app-region: no-drag;
   }
-  #new-tab-btn:hover { background: #333; color: #fff; }
+  #new-tab-btn:hover { background: #35363a; }
 
-  /* Nav bar */
+  /* Nav bar — Chrome-style omnibar */
   #nav-bar {
     display: flex;
     align-items: center;
-    height: 36px;
-    background: #2b2b2b;
+    height: 34px;
+    background: #35363a;
     padding: 0 8px;
     gap: 4px;
-    border-top: 1px solid #3c3c3c;
   }
   .nav-btn {
     width: 28px;
@@ -98,26 +110,34 @@ pub fn chrome_html() -> String {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: 50%;
     cursor: pointer;
-    font-size: 14px;
-    color: #888;
+    font-size: 13px;
+    color: #9aa0a6;
     background: none;
     border: none;
+    flex-shrink: 0;
+    transition: background 0.1s;
   }
-  .nav-btn:hover { background: #3c3c3c; color: #fff; }
+  .nav-btn:hover { background: #4a4b4f; color: #e8eaed; }
+  .nav-btn:active { background: #5f6368; }
   #address-bar {
     flex: 1;
-    height: 26px;
-    background: #1e1e1e;
-    border: 1px solid #3c3c3c;
-    border-radius: 6px;
-    padding: 0 10px;
-    color: #e0e0e0;
+    height: 28px;
+    background: #202124;
+    border: none;
+    border-radius: 14px;
+    padding: 0 14px;
+    color: #e8eaed;
     font-size: 13px;
     outline: none;
+    transition: background 0.2s;
   }
-  #address-bar:focus { border-color: #5b9bd5; }
+  #address-bar:focus {
+    background: #292b2e;
+    box-shadow: 0 0 0 2px #8ab4f8;
+  }
+  #address-bar::selection { background: #3c6db5; }
 </style>
 </head>
 <body>

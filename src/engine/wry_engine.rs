@@ -5,6 +5,8 @@ use wry::{Rect, WebView, WebViewBuilder};
 use crate::engine::{EngineResult, WebEngine};
 use crate::tab::TabId;
 
+const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+
 pub struct WryEngine<'a> {
     window: &'a Window,
     webviews: HashMap<TabId, WebView>,
@@ -29,6 +31,7 @@ impl WebEngine for WryEngine<'_> {
         let webview = WebViewBuilder::new()
             .with_bounds(bounds)
             .with_url(url)
+            .with_user_agent(USER_AGENT)
             .build_as_child(self.window)?;
         self.webviews.insert(tab_id, webview);
         Ok(())

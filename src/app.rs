@@ -6,6 +6,11 @@ use winit::{
     keyboard::ModifiersState,
     window::{Window, WindowId},
 };
+
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{NSApp, NSMenu, NSMenuItem};
+#[cfg(target_os = "macos")]
+use objc2_foundation::{MainThreadMarker, NSString};
 use wry::{
     dpi::{LogicalPosition, LogicalSize},
     Rect, WebView, WebViewBuilder,
@@ -247,6 +252,47 @@ impl ApplicationHandler for App {
         self.chrome_webview = Some(chrome);
         self.window = Some(window);
         self.engine = Some(WryEngine::new(window));
+
+        // On macOS, add a native Edit menu so Cmd+A/C/V/X work in webviews
+        #[cfg(target_os = "macos")]
+        {
+            let mtm = unsafe { MainThreadMarker::new_unchecked() };
+            unsafe {
+                let app = NSApp(mtm);
+                let menu_bar = NSMenu::new(mtm);
+
+                // App menu (required as first item)
+                let app_menu = NSMenu::new(mtm);
+                let app_menu_item = NSMenuItem::new(mtm);
+                app_menu_item.setSubmenu(Some(&app_menu));
+                menu_bar.addItem(&app_menu_item);
+
+                // Edit menu
+                let edit_menu = NSMenu::new(mtm);
+                edit_menu.setTitle(&NSString::from_str("Edit"));
+                let edit_menu_item = NSMenuItem::new(mtm);
+                edit_menu_item.setSubmenu(Some(&edit_menu));
+
+                let make_item = |title: &str, action: objc2::runtime::Sel, key: &str| -> objc2::rc::Retained<NSMenuItem> {
+                    let item = NSMenuItem::new(mtm);
+                    item.setTitle(&NSString::from_str(title));
+                    item.setAction(Some(action));
+                    item.setKeyEquivalent(&NSString::from_str(key));
+                    item
+                };
+
+                edit_menu.addItem(&make_item("Undo", objc2::sel!(undo:), "z"));
+                edit_menu.addItem(&make_item("Redo", objc2::sel!(redo:), "Z"));
+                edit_menu.addItem(&NSMenuItem::separatorItem(mtm));
+                edit_menu.addItem(&make_item("Cut", objc2::sel!(cut:), "x"));
+                edit_menu.addItem(&make_item("Copy", objc2::sel!(copy:), "c"));
+                edit_menu.addItem(&make_item("Paste", objc2::sel!(paste:), "v"));
+                edit_menu.addItem(&make_item("Select All", objc2::sel!(selectAll:), "a"));
+
+                menu_bar.addItem(&edit_menu_item);
+                app.setMainMenu(Some(&menu_bar));
+            }
+        }
 
         // Open default tab
         self.create_tab("https://start.duckduckgo.com");
