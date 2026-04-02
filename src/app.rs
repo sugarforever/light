@@ -12,6 +12,7 @@ use wry::{
 };
 
 use crate::bookmarks::{self, Bookmark};
+use crate::bookmarks_page;
 use crate::chrome::chrome_html;
 use crate::settings;
 use crate::settings_page;
@@ -217,6 +218,27 @@ impl AppState {
                     self.send_to_chrome(&AppToChrome::TabUpdated {
                         id: id.0,
                         title: "Settings".to_string(),
+                        url: url.to_string(),
+                        favicon: String::new(),
+                        is_loading: false,
+                    });
+                    self.update_window_title();
+                }
+            }
+            "light://bookmarks" => {
+                let html = bookmarks_page::bookmarks_html(&self.bookmarks);
+                if self.tabs.is_empty() {
+                    self.create_tab(url);
+                }
+                if let Some(id) = self.tabs.active_id() {
+                    if let Some(engine) = &self.engine {
+                        let _ = engine.load_html(id, &html);
+                    }
+                    self.tabs.update_title(id, "Bookmarks".to_string());
+                    self.tabs.update_url(id, url.to_string());
+                    self.send_to_chrome(&AppToChrome::TabUpdated {
+                        id: id.0,
+                        title: "Bookmarks".to_string(),
                         url: url.to_string(),
                         favicon: String::new(),
                         is_loading: false,

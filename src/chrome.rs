@@ -215,7 +215,7 @@ pub fn chrome_html() -> String {
 </div>
 
 <div id="menu-dropdown">
-  <div class="menu-item" onclick="send({type:'ToggleBookmarksBar'});closeMenu()"><span class="icon">&#9734;</span>Bookmarks</div>
+  <div class="menu-item" onclick="send({type:'Navigate',url:'light://bookmarks'});closeMenu()"><span class="icon">&#9734;</span>Bookmarks</div>
   <div class="menu-item" onclick="send({type:'OpenSettings'});closeMenu()"><span class="icon">&#9881;</span>Settings</div>
 </div>
 

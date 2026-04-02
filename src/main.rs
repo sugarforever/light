@@ -1,5 +1,6 @@
 mod app;
 mod bookmarks;
+mod bookmarks_page;
 mod chrome;
 mod engine;
 mod ipc;
