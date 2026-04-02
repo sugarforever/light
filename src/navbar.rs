@@ -6,7 +6,6 @@ pub fn navbar_html() -> String {
 <meta charset="utf-8">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  *::selection { background: transparent; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 12px;
@@ -55,6 +54,10 @@ pub fn navbar_html() -> String {
   }
   #address-bar:focus {
     box-shadow: 0 0 0 2px #8ab4f8;
+  }
+  #address-bar::selection {
+    background: #3c6db5;
+    color: #fff;
   }
   #bookmark-btn {
     width: 28px;
