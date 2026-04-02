@@ -293,6 +293,13 @@ impl AppState {
 
 #[cfg(target_os = "macos")]
 fn setup_macos_icon() {
+    // Skip if running from a .app bundle — the .icns handles the icon
+    let exe = std::env::current_exe().unwrap_or_default();
+    if exe.to_string_lossy().contains(".app/Contents/MacOS") {
+        return;
+    }
+
+    // Only set icon when running as a raw binary (cargo run)
     use objc2_app_kit::NSApp;
     use objc2_foundation::{MainThreadMarker, NSData};
 
@@ -301,7 +308,6 @@ fn setup_macos_icon() {
     let mtm = unsafe { MainThreadMarker::new_unchecked() };
     unsafe {
         let data = NSData::with_bytes(ICON_PNG);
-        // Use msg_send since NSImage is MainThreadOnly and alloc() isn't available
         let cls = objc2::runtime::AnyClass::get("NSImage").unwrap();
         let image: *mut objc2::runtime::AnyObject = objc2::msg_send![cls, alloc];
         let image: *mut objc2::runtime::AnyObject = objc2::msg_send![image, initWithData: &*data];
