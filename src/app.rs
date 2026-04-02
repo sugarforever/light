@@ -170,6 +170,14 @@ impl AppState {
             }
             ipc::ChromeToApp::PageInfo { tab_id, title, url } => {
                 let id = TabId(tab_id);
+                // Don't let page tracker overwrite internal pages
+                let current_url = self.tabs.tabs().iter()
+                    .find(|t| t.id == id)
+                    .map(|t| t.url.clone())
+                    .unwrap_or_default();
+                if current_url.starts_with("light://") {
+                    return;
+                }
                 self.tabs.update_title(id, title.clone());
                 self.tabs.update_url(id, url.clone());
                 self.send_to_chrome(&AppToChrome::TabUpdated {
@@ -237,8 +245,11 @@ impl AppState {
         let id = self.tabs.create_tab(url);
         let bounds = self.content_bounds();
 
+        // For internal URIs, create webview with about:blank — content loaded later via navigate_internal
+        let webview_url = if url.starts_with("light://") { "about:blank" } else { url };
+
         if let Some(engine) = &mut self.engine {
-            let _ = engine.create_webview(id, url, bounds);
+            let _ = engine.create_webview(id, webview_url, bounds);
             if let Some(old_id) = old_active {
                 let _ = engine.set_visible(old_id, false);
             }
