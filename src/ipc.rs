@@ -19,6 +19,7 @@ pub enum ChromeToApp {
     SaveSettings { default_url: String },
     PageInfo { tab_id: u64, title: String, url: String, #[serde(default)] favicon: String },
     FocusAddressBar,
+    ToggleSidebar,
     DragWindow,
 }
 

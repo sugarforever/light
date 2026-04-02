@@ -23,7 +23,8 @@ use crate::keys::{self, Shortcut};
 use crate::tab::{TabId, TabManager};
 use crate::url::normalize_url;
 
-const SIDEBAR_WIDTH: u32 = 220;
+const SIDEBAR_WIDTH_COMPACT: u32 = 44;
+const SIDEBAR_WIDTH_EXPANDED: u32 = 220;
 const NAV_BAR_HEIGHT: u32 = 38;
 const FALLBACK_URL: &str = "about:blank";
 
@@ -35,6 +36,7 @@ struct AppState {
     tabs: TabManager,
     bookmarks: Vec<Bookmark>,
     default_url: String,
+    sidebar_width: u32,
     modifiers: ModifiersState,
     ipc_receiver: Option<mpsc::Receiver<String>>,
     window_width: u32,
@@ -44,9 +46,9 @@ struct AppState {
 impl AppState {
     fn content_bounds(&self) -> Rect {
         Rect {
-            position: LogicalPosition::new(SIDEBAR_WIDTH, NAV_BAR_HEIGHT).into(),
+            position: LogicalPosition::new(self.sidebar_width, NAV_BAR_HEIGHT).into(),
             size: WryLogicalSize::new(
-                self.window_width.saturating_sub(SIDEBAR_WIDTH),
+                self.window_width.saturating_sub(self.sidebar_width),
                 self.window_height.saturating_sub(NAV_BAR_HEIGHT),
             ).into(),
         }
@@ -55,15 +57,15 @@ impl AppState {
     fn sidebar_bounds(&self) -> Rect {
         Rect {
             position: LogicalPosition::new(0, 0).into(),
-            size: WryLogicalSize::new(SIDEBAR_WIDTH, self.window_height).into(),
+            size: WryLogicalSize::new(self.sidebar_width, self.window_height).into(),
         }
     }
 
     fn navbar_bounds(&self) -> Rect {
         Rect {
-            position: LogicalPosition::new(SIDEBAR_WIDTH, 0).into(),
+            position: LogicalPosition::new(self.sidebar_width, 0).into(),
             size: WryLogicalSize::new(
-                self.window_width.saturating_sub(SIDEBAR_WIDTH),
+                self.window_width.saturating_sub(self.sidebar_width),
                 NAV_BAR_HEIGHT,
             ).into(),
         }
@@ -155,6 +157,18 @@ impl AppState {
                 s.default_url = default_url.clone();
                 settings::save(&s);
                 self.default_url = default_url;
+            }
+            ipc::ChromeToApp::ToggleSidebar => {
+                self.sidebar_width = if self.sidebar_width == SIDEBAR_WIDTH_COMPACT {
+                    SIDEBAR_WIDTH_EXPANDED
+                } else {
+                    SIDEBAR_WIDTH_COMPACT
+                };
+                let compact = self.sidebar_width == SIDEBAR_WIDTH_COMPACT;
+                if let Some(sidebar) = &self.sidebar_webview {
+                    let _ = sidebar.evaluate_script(&format!("setCompact({})", compact));
+                }
+                self.resize_all_webviews();
             }
             ipc::ChromeToApp::FocusAddressBar => {
                 if let Some(navbar) = &self.navbar_webview {
@@ -440,11 +454,11 @@ pub fn run() {
     let navbar_tx = tx.clone();
     let engine_tx = tx;
 
-    // Sidebar on the left (tabs, bookmarks, menu)
+    // Sidebar on the left (tabs) — starts compact
     let sidebar = WebViewBuilder::new()
         .with_bounds(Rect {
             position: LogicalPosition::new(0, 0).into(),
-            size: WryLogicalSize::new(SIDEBAR_WIDTH, size.height).into(),
+            size: WryLogicalSize::new(SIDEBAR_WIDTH_COMPACT, size.height).into(),
         })
         .with_html(&chrome_html())
         .with_ipc_handler(move |req| {
@@ -455,10 +469,10 @@ pub fn run() {
         .unwrap();
 
     // Nav bar at the top of the content area
-    let content_width = size.width.saturating_sub(SIDEBAR_WIDTH);
+    let content_width = size.width.saturating_sub(SIDEBAR_WIDTH_COMPACT);
     let navbar = WebViewBuilder::new()
         .with_bounds(Rect {
-            position: LogicalPosition::new(SIDEBAR_WIDTH, 0).into(),
+            position: LogicalPosition::new(SIDEBAR_WIDTH_COMPACT, 0).into(),
             size: WryLogicalSize::new(content_width, NAV_BAR_HEIGHT).into(),
         })
         .with_html(&crate::navbar::navbar_html())
@@ -481,6 +495,7 @@ pub fn run() {
         tabs: TabManager::new(),
         bookmarks: user_bookmarks,
         default_url: default_url.clone(),
+        sidebar_width: SIDEBAR_WIDTH_COMPACT,
         modifiers: ModifiersState::empty(),
         ipc_receiver: Some(rx),
         window_width: size.width,
