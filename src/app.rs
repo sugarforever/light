@@ -145,13 +145,7 @@ impl AppState {
                 bookmarks::remove(&mut self.bookmarks, &url);
                 self.sync_bookmarks();
             }
-            ipc::ChromeToApp::ToggleBookmarksBar => {
-                if let Some(sidebar) = &self.sidebar_webview {
-                    let _ = sidebar.evaluate_script(
-                        "bookmarksVisible = !bookmarksVisible; renderBookmarks();"
-                    );
-                }
-            }
+            ipc::ChromeToApp::ToggleBookmarksBar => {}
             ipc::ChromeToApp::OpenSettings => {
                 self.create_tab("light://settings");
                 self.navigate_internal("light://settings");

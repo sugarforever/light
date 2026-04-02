@@ -1,5 +1,5 @@
 /// Returns the HTML string for the sidebar chrome.
-/// Vertical layout: tabs, bookmarks, menu.
+/// Clean layout: tabs only + new tab button.
 pub fn chrome_html() -> String {
     r##"<!DOCTYPE html>
 <html>
@@ -20,23 +20,13 @@ pub fn chrome_html() -> String {
     flex-direction: column;
   }
 
-  /* Section label */
-  .section-label {
-    font-size: 10px;
-    color: #6e6e6e;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 8px 12px 4px;
-    flex-shrink: 0;
-  }
-
   /* Tabs list */
   #tabs-section {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     min-height: 0;
-    padding-top: 4px;
+    padding-top: 8px;
   }
   #tabs-section::-webkit-scrollbar { width: 4px; }
   #tabs-section::-webkit-scrollbar-thumb { background: #3c3c3c; border-radius: 2px; }
@@ -102,128 +92,24 @@ pub fn chrome_html() -> String {
     color: #9aa0a6;
     font-size: 12px;
     gap: 6px;
-    margin: 2px 6px;
+    margin: 4px 6px 8px;
     border-radius: 6px;
     flex-shrink: 0;
   }
   #new-tab-btn:hover { background: #292b2e; color: #e8eaed; }
   #new-tab-btn .plus { font-size: 16px; }
-
-  /* Divider */
-  .divider {
-    height: 1px;
-    background: #2a2a2a;
-    margin: 4px 8px;
-    flex-shrink: 0;
-  }
-
-  /* Bookmarks section */
-  #bookmarks-section {
-    max-height: 150px;
-    overflow-y: auto;
-    overflow-x: hidden;
-    flex-shrink: 0;
-  }
-  #bookmarks-section::-webkit-scrollbar { width: 4px; }
-  #bookmarks-section::-webkit-scrollbar-thumb { background: #3c3c3c; border-radius: 2px; }
-  .bookmark-item {
-    display: flex;
-    align-items: center;
-    height: 28px;
-    padding: 0 12px;
-    cursor: pointer;
-    font-size: 11px;
-    color: #bdc1c6;
-    border-radius: 6px;
-    margin: 1px 6px;
-  }
-  .bookmark-item:hover { background: #292b2e; color: #e8eaed; }
-  .bm-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-  }
-
-  /* Bottom bar with menu */
-  #bottom-bar {
-    display: flex;
-    align-items: center;
-    padding: 6px 8px;
-    gap: 4px;
-    flex-shrink: 0;
-    border-top: 1px solid #2a2a2a;
-  }
-  #menu-btn {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 16px;
-    color: #9aa0a6;
-    background: none;
-    border: none;
-  }
-  #menu-btn:hover { background: #35363a; }
-
-  /* Menu dropdown */
-  #menu-dropdown {
-    display: none;
-    position: absolute;
-    bottom: 40px;
-    left: 8px;
-    background: #292b2e;
-    border: 1px solid #3c3c3c;
-    border-radius: 8px;
-    padding: 4px 0;
-    min-width: 160px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    z-index: 100;
-  }
-  #menu-dropdown.visible { display: block; }
-  .menu-item {
-    display: flex;
-    align-items: center;
-    height: 30px;
-    padding: 0 14px;
-    cursor: pointer;
-    font-size: 12px;
-    color: #e8eaed;
-    gap: 8px;
-  }
-  .menu-item:hover { background: #3c3c3c; }
-  .menu-item .icon { color: #9aa0a6; font-size: 13px; width: 16px; text-align: center; }
 </style>
 </head>
 <body>
 
-<div class="section-label">Tabs</div>
 <div id="tabs-section"></div>
 <div id="new-tab-btn" onclick="send({type:'NewTab'})">
   <span class="plus">+</span> New Tab
 </div>
 
-<div class="divider"></div>
-<div class="section-label" id="bookmarks-label" style="display:none">Bookmarks</div>
-<div id="bookmarks-section"></div>
-
-<div id="bottom-bar">
-  <button id="menu-btn" onclick="toggleMenu(event)" title="Menu">&#8942;</button>
-</div>
-
-<div id="menu-dropdown">
-  <div class="menu-item" onclick="send({type:'Navigate',url:'light://bookmarks'});closeMenu()"><span class="icon">&#9734;</span>Bookmarks</div>
-  <div class="menu-item" onclick="send({type:'OpenSettings'});closeMenu()"><span class="icon">&#9881;</span>Settings</div>
-</div>
-
 <script>
   let tabs = [];
   let activeId = null;
-  let bookmarks = [];
-  let bookmarksVisible = true;
 
   function send(msg) {
     window.ipc.postMessage(JSON.stringify(msg));
@@ -241,17 +127,6 @@ pub fn chrome_html() -> String {
     }
   });
 
-  function toggleMenu(e) {
-    e.stopPropagation();
-    document.getElementById('menu-dropdown').classList.toggle('visible');
-  }
-
-  function closeMenu() {
-    document.getElementById('menu-dropdown').classList.remove('visible');
-  }
-
-  document.addEventListener('click', closeMenu);
-
   function renderTabs() {
     const container = document.getElementById('tabs-section');
     container.innerHTML = '';
@@ -266,27 +141,6 @@ pub fn chrome_html() -> String {
                    + '<span class="tab-close" onclick="event.stopPropagation();send({type:\'CloseTab\',id:' + tab.id + '})">&#215;</span>';
       el.onclick = () => send({type:'SwitchTab', id: tab.id});
       container.appendChild(el);
-    });
-  }
-
-  function renderBookmarks() {
-    const section = document.getElementById('bookmarks-section');
-    const label = document.getElementById('bookmarks-label');
-    section.innerHTML = '';
-    if (bookmarks.length === 0 || !bookmarksVisible) {
-      section.style.display = 'none';
-      label.style.display = 'none';
-      return;
-    }
-    section.style.display = 'block';
-    label.style.display = 'block';
-    bookmarks.forEach(bm => {
-      const el = document.createElement('div');
-      el.className = 'bookmark-item';
-      el.innerHTML = '<span class="bm-name">' + escapeHtml(bm.name) + '</span>';
-      el.onclick = () => send({type:'Navigate', url: bm.url});
-      el.oncontextmenu = (e) => { e.preventDefault(); send({type:'RemoveBookmark', url: bm.url}); };
-      section.appendChild(el);
     });
   }
 
@@ -319,10 +173,6 @@ pub fn chrome_html() -> String {
         tabs = msg.tabs;
         activeId = msg.active_id;
         renderTabs();
-        break;
-      case 'Bookmarks':
-        bookmarks = msg.bookmarks;
-        renderBookmarks();
         break;
     }
   }

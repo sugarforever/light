@@ -1,4 +1,5 @@
-/// Returns the HTML for the top navigation bar (address bar, nav buttons, bookmark star, menu).
+/// Returns the HTML for the top navigation bar.
+/// Contains: nav buttons, address bar, bookmark star, menu (settings, bookmarks).
 pub fn navbar_html() -> String {
     r##"<!DOCTYPE html>
 <html>
@@ -12,7 +13,7 @@ pub fn navbar_html() -> String {
     background: #292b2e;
     color: #e8eaed;
     user-select: none;
-    overflow: hidden;
+    overflow: visible;
     height: 100vh;
     display: flex;
     align-items: center;
@@ -59,7 +60,7 @@ pub fn navbar_html() -> String {
     background: #3c6db5;
     color: #fff;
   }
-  #bookmark-btn {
+  #bookmark-btn, #menu-btn {
     width: 28px;
     height: 28px;
     display: flex;
@@ -72,9 +73,39 @@ pub fn navbar_html() -> String {
     background: none;
     border: none;
     flex-shrink: 0;
+    position: relative;
   }
-  #bookmark-btn:hover { background: #3c3c3c; }
+  #bookmark-btn:hover, #menu-btn:hover { background: #3c3c3c; }
   #bookmark-btn.bookmarked { color: #8ab4f8; }
+
+  /* Menu dropdown */
+  #menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 34px;
+    right: 0;
+    background: #292b2e;
+    border: 1px solid #3c3c3c;
+    border-radius: 8px;
+    padding: 4px 0;
+    min-width: 180px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    z-index: 100;
+  }
+  #menu-dropdown.visible { display: block; }
+  .menu-item {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    padding: 0 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #e8eaed;
+    gap: 10px;
+  }
+  .menu-item:hover { background: #3c3c3c; }
+  .menu-icon { color: #9aa0a6; font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+  .menu-separator { height: 1px; background: #3c3c3c; margin: 4px 0; }
 </style>
 </head>
 <body>
@@ -86,6 +117,14 @@ pub fn navbar_html() -> String {
   <input id="address-bar" type="text" spellcheck="false"
          onkeydown="if(event.key==='Enter'){send({type:'Navigate',url:this.value})}">
   <button id="bookmark-btn" onclick="toggleBookmark()" title="Bookmark">&#9734;</button>
+  <button id="menu-btn" onclick="toggleMenu(event)" title="Menu">
+    &#8942;
+    <div id="menu-dropdown">
+      <div class="menu-item" onclick="send({type:'Navigate',url:'light://bookmarks'})"><span class="menu-icon">&#9734;</span>Bookmarks</div>
+      <div class="menu-separator"></div>
+      <div class="menu-item" onclick="send({type:'Navigate',url:'light://settings'})"><span class="menu-icon">&#9881;</span>Settings</div>
+    </div>
+  </button>
 </div>
 
 <script>
@@ -96,6 +135,7 @@ pub fn navbar_html() -> String {
 
   function send(msg) {
     window.ipc.postMessage(JSON.stringify(msg));
+    closeMenu();
   }
 
   // Keyboard shortcuts
@@ -108,6 +148,19 @@ pub fn navbar_html() -> String {
         case 'r': e.preventDefault(); send({type:'Reload'}); break;
       }
     }
+  });
+
+  function toggleMenu(e) {
+    e.stopPropagation();
+    document.getElementById('menu-dropdown').classList.toggle('visible');
+  }
+
+  function closeMenu() {
+    document.getElementById('menu-dropdown').classList.remove('visible');
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#menu-btn')) closeMenu();
   });
 
   function updateBookmarkBtn() {
