@@ -159,15 +159,28 @@ impl AppState {
                 self.default_url = default_url;
             }
             ipc::ChromeToApp::ToggleSidebar => {
-                self.sidebar_width = if self.sidebar_width == SIDEBAR_WIDTH_COMPACT {
-                    SIDEBAR_WIDTH_EXPANDED
-                } else {
-                    SIDEBAR_WIDTH_COMPACT
-                };
-                let compact = self.sidebar_width == SIDEBAR_WIDTH_COMPACT;
+                let expanding = self.sidebar_width == SIDEBAR_WIDTH_COMPACT;
+                let target = if expanding { SIDEBAR_WIDTH_EXPANDED } else { SIDEBAR_WIDTH_COMPACT };
+
+                // Set CSS mode immediately for content transition
                 if let Some(sidebar) = &self.sidebar_webview {
-                    let _ = sidebar.evaluate_script(&format!("setCompact({})", compact));
+                    let _ = sidebar.evaluate_script(&format!("setCompact({})", !expanding));
                 }
+
+                // Animate sidebar width in steps
+                let start = self.sidebar_width;
+                let steps = 8u32;
+                for i in 1..=steps {
+                    let t = i as f64 / steps as f64;
+                    // Ease out cubic
+                    let eased = 1.0 - (1.0 - t).powi(3);
+                    let w = start as f64 + (target as f64 - start as f64) * eased;
+                    self.sidebar_width = w as u32;
+                    self.resize_all_webviews();
+                    // ~16ms per frame ≈ 60fps, total ~128ms
+                    std::thread::sleep(std::time::Duration::from_millis(16));
+                }
+                self.sidebar_width = target;
                 self.resize_all_webviews();
             }
             ipc::ChromeToApp::FocusAddressBar => {
