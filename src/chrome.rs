@@ -38,8 +38,6 @@ pub fn chrome_html() -> String {
     transition: color 0.15s, background 0.1s;
   }
   #toggle-btn:hover { background: #292b2e; color: #e8eaed; }
-  #toggle-btn svg { transition: transform 0.2s ease; }
-  body.compact #toggle-btn svg { transform: scaleX(-1); }
 
   /* Tabs list */
   #tabs-section {
@@ -87,8 +85,6 @@ pub fn chrome_html() -> String {
     flex: 1;
     font-size: 12px;
     margin-left: 8px;
-    opacity: 1;
-    transition: opacity 0.15s ease;
   }
   .tab-close {
     width: 18px;
@@ -101,7 +97,7 @@ pub fn chrome_html() -> String {
     color: #9aa0a6;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.15s ease, width 0.15s ease;
+    transition: opacity 0.1s;
     flex-shrink: 0;
   }
   .tab:hover .tab-close, .tab.active .tab-close { opacity: 1; }
@@ -115,8 +111,8 @@ pub fn chrome_html() -> String {
     height: 32px;
     border-radius: 6px;
   }
-  body.compact .tab-title { opacity: 0; width: 0; margin: 0; overflow: hidden; }
-  body.compact .tab-close { opacity: 0; width: 0; overflow: hidden; }
+  body.compact .tab-title { display: none; }
+  body.compact .tab-close { display: none; }
   body.compact .tab-favicon,
   body.compact .tab-favicon-placeholder {
     width: 18px;
@@ -139,14 +135,14 @@ pub fn chrome_html() -> String {
   }
   #new-tab-btn:hover { background: #292b2e; color: #e8eaed; }
   #new-tab-btn .plus { font-size: 16px; }
-  #new-tab-btn .label { transition: opacity 0.15s ease; }
+  #new-tab-btn .label { }
 
   body.compact #new-tab-btn {
     justify-content: center;
     padding: 0;
     margin: 4px 4px 8px;
   }
-  body.compact #new-tab-btn .label { opacity: 0; width: 0; overflow: hidden; }
+  body.compact #new-tab-btn .label { display: none; }
 </style>
 </head>
 <body class="compact">
