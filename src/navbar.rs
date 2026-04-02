@@ -132,14 +132,14 @@ pub fn navbar_html() -> String {
   function handleMessage(msg) {
     switch (msg.type) {
       case 'TabCreated':
-        tabs.push({id: msg.id, title: msg.title, url: msg.url});
+        tabs.push({id: msg.id, title: msg.title, url: msg.url, favicon: msg.favicon || ''});
         activeId = msg.id;
         currentUrl = msg.url;
         document.getElementById('address-bar').value = msg.url;
         updateBookmarkBtn();
         break;
       case 'TabUpdated':
-        tabs = tabs.map(t => t.id === msg.id ? {...t, title: msg.title, url: msg.url} : t);
+        tabs = tabs.map(t => t.id === msg.id ? {...t, title: msg.title, url: msg.url, favicon: msg.favicon || t.favicon} : t);
         if (msg.id === activeId) {
           currentUrl = msg.url;
           document.getElementById('address-bar').value = msg.url;

@@ -106,6 +106,7 @@ impl AppState {
                         id: id.0,
                         title: self.tabs.active_tab().map(|t| t.title.clone()).unwrap_or_default(),
                         url,
+                        favicon: self.tabs.active_tab().map(|t| t.favicon.clone()).unwrap_or_default(),
                         is_loading: true,
                     });
                 }
@@ -168,7 +169,7 @@ impl AppState {
             ipc::ChromeToApp::DragWindow => {
                 let _ = self.window.drag_window();
             }
-            ipc::ChromeToApp::PageInfo { tab_id, title, url } => {
+            ipc::ChromeToApp::PageInfo { tab_id, title, url, favicon } => {
                 let id = TabId(tab_id);
                 // Don't let page tracker overwrite internal pages
                 let current_url = self.tabs.tabs().iter()
@@ -180,10 +181,15 @@ impl AppState {
                 }
                 self.tabs.update_title(id, title.clone());
                 self.tabs.update_url(id, url.clone());
+                if !favicon.is_empty() {
+                    self.tabs.update_favicon(id, favicon.clone());
+                }
+                let fav = self.tabs.tabs().iter().find(|t| t.id == id).map(|t| t.favicon.clone()).unwrap_or_default();
                 self.send_to_chrome(&AppToChrome::TabUpdated {
                     id: tab_id,
                     title,
                     url,
+                    favicon: fav,
                     is_loading: false,
                 });
                 if self.tabs.active_id() == Some(id) {
@@ -212,6 +218,7 @@ impl AppState {
                         id: id.0,
                         title: "Settings".to_string(),
                         url: url.to_string(),
+                        favicon: String::new(),
                         is_loading: false,
                     });
                     self.update_window_title();
@@ -259,6 +266,7 @@ impl AppState {
             id: id.0,
             title: "New Tab".to_string(),
             url: url.to_string(),
+            favicon: String::new(),
         });
     }
 
@@ -297,6 +305,7 @@ impl AppState {
             id: t.id.0,
             title: t.title.clone(),
             url: t.url.clone(),
+            favicon: t.favicon.clone(),
             is_loading: t.is_loading,
         }).collect();
         let active_id = self.tabs.active_id().map(|id| id.0).unwrap_or(0);

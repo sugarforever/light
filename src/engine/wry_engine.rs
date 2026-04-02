@@ -43,18 +43,28 @@ impl WebEngine for WryEngine<'_> {
             .with_initialization_script(&format!(
                 r#"
                 (function() {{
-                    // Page title/URL tracking
+                    // Page title/URL/favicon tracking
                     let lastTitle = '';
                     let lastUrl = '';
+                    let lastFavicon = '';
+                    function getFavicon() {{
+                        var link = document.querySelector("link[rel~='icon']")
+                            || document.querySelector("link[rel='shortcut icon']");
+                        if (link) return link.href;
+                        return location.origin + '/favicon.ico';
+                    }}
                     function check() {{
-                        if (document.title !== lastTitle || location.href !== lastUrl) {{
+                        var fav = getFavicon();
+                        if (document.title !== lastTitle || location.href !== lastUrl || fav !== lastFavicon) {{
                             lastTitle = document.title;
                             lastUrl = location.href;
+                            lastFavicon = fav;
                             window.ipc.postMessage(JSON.stringify({{
                                 type: 'PageInfo',
                                 tab_id: {tab_id_val},
                                 title: document.title,
-                                url: location.href
+                                url: location.href,
+                                favicon: fav
                             }}));
                         }}
                     }}

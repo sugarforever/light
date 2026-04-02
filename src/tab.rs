@@ -6,6 +6,7 @@ pub struct Tab {
     pub id: TabId,
     pub title: String,
     pub url: String,
+    pub favicon: String,
     pub is_loading: bool,
 }
 
@@ -31,6 +32,7 @@ impl TabManager {
             id,
             title: "New Tab".to_string(),
             url: url.to_string(),
+            favicon: String::new(),
             is_loading: false,
         });
         self.active = self.tabs.len() - 1;
@@ -86,6 +88,12 @@ impl TabManager {
     pub fn update_url(&mut self, id: TabId, url: String) {
         if let Some(idx) = self.find_index(id) {
             self.tabs[idx].url = url;
+        }
+    }
+
+    pub fn update_favicon(&mut self, id: TabId, favicon: String) {
+        if let Some(idx) = self.find_index(id) {
+            self.tabs[idx].favicon = favicon;
         }
     }
 

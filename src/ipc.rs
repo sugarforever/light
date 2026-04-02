@@ -17,7 +17,7 @@ pub enum ChromeToApp {
     ToggleBookmarksBar,
     OpenSettings,
     SaveSettings { default_url: String },
-    PageInfo { tab_id: u64, title: String, url: String },
+    PageInfo { tab_id: u64, title: String, url: String, #[serde(default)] favicon: String },
     FocusAddressBar,
     DragWindow,
 }
@@ -26,9 +26,9 @@ pub enum ChromeToApp {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum AppToChrome {
-    TabCreated { id: u64, title: String, url: String },
+    TabCreated { id: u64, title: String, url: String, favicon: String },
     TabClosed { id: u64 },
-    TabUpdated { id: u64, title: String, url: String, is_loading: bool },
+    TabUpdated { id: u64, title: String, url: String, favicon: String, is_loading: bool },
     ActiveTabChanged { id: u64 },
     AllTabs { tabs: Vec<TabInfo>, active_id: u64 },
     Bookmarks { bookmarks: Vec<BookmarkInfo> },
@@ -45,6 +45,7 @@ pub struct TabInfo {
     pub id: u64,
     pub title: String,
     pub url: String,
+    pub favicon: String,
     pub is_loading: bool,
 }
 
@@ -128,6 +129,7 @@ mod tests {
             id: 1,
             title: "Test".to_string(),
             url: "https://example.com".to_string(),
+            favicon: String::new(),
         };
         let js = msg.to_js_call();
         assert!(js.starts_with("handleMessage("));

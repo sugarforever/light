@@ -53,6 +53,22 @@ pub fn chrome_html() -> String {
   }
   .tab:hover { background: #292b2e; }
   .tab.active { background: #35363a; color: #e8eaed; }
+  .tab-favicon {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    margin-right: 8px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+  .tab-favicon-placeholder {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    margin-right: 8px;
+    flex-shrink: 0;
+    background: #3c3c3c;
+  }
   .tab-title {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -242,7 +258,11 @@ pub fn chrome_html() -> String {
     tabs.forEach((tab) => {
       const el = document.createElement('div');
       el.className = 'tab' + (tab.id === activeId ? ' active' : '');
-      el.innerHTML = '<span class="tab-title">' + escapeHtml(tab.title) + '</span>'
+      const favHtml = tab.favicon
+        ? '<img class="tab-favicon" src="' + escapeHtml(tab.favicon) + '" onerror="this.className=\'tab-favicon-placeholder\';this.removeAttribute(\'src\')">'
+        : '<span class="tab-favicon-placeholder"></span>';
+      el.innerHTML = favHtml
+                   + '<span class="tab-title">' + escapeHtml(tab.title) + '</span>'
                    + '<span class="tab-close" onclick="event.stopPropagation();send({type:\'CloseTab\',id:' + tab.id + '})">&#215;</span>';
       el.onclick = () => send({type:'SwitchTab', id: tab.id});
       container.appendChild(el);
@@ -279,7 +299,7 @@ pub fn chrome_html() -> String {
   function handleMessage(msg) {
     switch (msg.type) {
       case 'TabCreated':
-        tabs.push({id: msg.id, title: msg.title, url: msg.url});
+        tabs.push({id: msg.id, title: msg.title, url: msg.url, favicon: msg.favicon || ''});
         activeId = msg.id;
         renderTabs();
         break;
@@ -288,7 +308,7 @@ pub fn chrome_html() -> String {
         renderTabs();
         break;
       case 'TabUpdated':
-        tabs = tabs.map(t => t.id === msg.id ? {...t, title: msg.title, url: msg.url} : t);
+        tabs = tabs.map(t => t.id === msg.id ? {...t, title: msg.title, url: msg.url, favicon: msg.favicon || t.favicon} : t);
         renderTabs();
         break;
       case 'ActiveTabChanged':
