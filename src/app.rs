@@ -95,7 +95,9 @@ impl AppState {
         match msg {
             ipc::ChromeToApp::Navigate { url } => {
                 let url = normalize_url(&url);
-                if let Some(id) = self.tabs.active_id() {
+                if url.starts_with("light://") {
+                    self.navigate_internal(&url);
+                } else if let Some(id) = self.tabs.active_id() {
                     if let Some(engine) = &self.engine {
                         let _ = engine.navigate(id, &url);
                     }
@@ -149,21 +151,8 @@ impl AppState {
                 }
             }
             ipc::ChromeToApp::OpenSettings => {
-                let s = settings::load();
-                let html = settings_page::settings_html(&s.default_url);
                 self.create_tab("light://settings");
-                if let Some(id) = self.tabs.active_id() {
-                    if let Some(engine) = &self.engine {
-                        let _ = engine.load_html(id, &html);
-                    }
-                    self.tabs.update_title(id, "Settings".to_string());
-                    self.send_to_chrome(&AppToChrome::TabUpdated {
-                        id: id.0,
-                        title: "Settings".to_string(),
-                        url: "light://settings".to_string(),
-                        is_loading: false,
-                    });
-                }
+                self.navigate_internal("light://settings");
             }
             ipc::ChromeToApp::SaveSettings { default_url } => {
                 let mut s = settings::load();
@@ -193,6 +182,34 @@ impl AppState {
                     self.update_window_title();
                 }
             }
+        }
+    }
+
+    fn navigate_internal(&mut self, url: &str) {
+        match url {
+            "light://settings" => {
+                let s = settings::load();
+                let html = settings_page::settings_html(&s.default_url);
+                // Load in current tab or create new one
+                if self.tabs.is_empty() {
+                    self.create_tab(url);
+                }
+                if let Some(id) = self.tabs.active_id() {
+                    if let Some(engine) = &self.engine {
+                        let _ = engine.load_html(id, &html);
+                    }
+                    self.tabs.update_title(id, "Settings".to_string());
+                    self.tabs.update_url(id, url.to_string());
+                    self.send_to_chrome(&AppToChrome::TabUpdated {
+                        id: id.0,
+                        title: "Settings".to_string(),
+                        url: url.to_string(),
+                        is_loading: false,
+                    });
+                    self.update_window_title();
+                }
+            }
+            _ => {} // Unknown internal URI — ignore
         }
     }
 

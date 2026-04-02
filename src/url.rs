@@ -1,7 +1,7 @@
 pub fn normalize_url(input: &str) -> String {
     let trimmed = input.trim();
 
-    if trimmed.starts_with("about:") {
+    if trimmed.starts_with("about:") || trimmed.starts_with("light://") {
         return trimmed.to_string();
     }
 
