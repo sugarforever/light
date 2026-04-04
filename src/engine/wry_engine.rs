@@ -43,17 +43,18 @@ impl WebEngine for WryEngine<'_> {
             .with_initialization_script(&format!(
                 r#"
                 (function() {{
-                    // Page title/URL/favicon tracking
+                    // Page title/URL/favicon tracking (debounced)
                     let lastTitle = '';
                     let lastUrl = '';
                     let lastFavicon = '';
+                    let debounceTimer = null;
                     function getFavicon() {{
                         var link = document.querySelector("link[rel~='icon']")
                             || document.querySelector("link[rel='shortcut icon']");
                         if (link) return link.href;
                         return location.origin + '/favicon.ico';
                     }}
-                    function check() {{
+                    function sendUpdate() {{
                         var fav = getFavicon();
                         if (document.title !== lastTitle || location.href !== lastUrl || fav !== lastFavicon) {{
                             lastTitle = document.title;
@@ -68,10 +69,35 @@ impl WebEngine for WryEngine<'_> {
                             }}));
                         }}
                     }}
-                    new MutationObserver(check).observe(document.querySelector('head') || document.documentElement, {{subtree: true, childList: true, characterData: true}});
-                    setInterval(check, 1000);
-                    window.addEventListener('load', check);
-                    setTimeout(check, 500);
+                    function debouncedCheck() {{
+                        if (debounceTimer) clearTimeout(debounceTimer);
+                        debounceTimer = setTimeout(sendUpdate, 300);
+                    }}
+                    // Watch for title changes
+                    var titleEl = document.querySelector('title');
+                    if (titleEl) {{
+                        new MutationObserver(debouncedCheck).observe(titleEl, {{childList: true, characterData: true, subtree: true}});
+                    }}
+                    // Watch for new <title> or <link rel=icon> being added
+                    new MutationObserver(function(mutations) {{
+                        for (var m of mutations) {{
+                            for (var n of m.addedNodes) {{
+                                if (n.tagName === 'TITLE' || (n.tagName === 'LINK' && n.rel && n.rel.includes('icon'))) {{
+                                    debouncedCheck();
+                                    if (n.tagName === 'TITLE') {{
+                                        new MutationObserver(debouncedCheck).observe(n, {{childList: true, characterData: true, subtree: true}});
+                                    }}
+                                    return;
+                                }}
+                            }}
+                        }}
+                    }}).observe(document.head || document.documentElement, {{childList: true}});
+                    // SPA navigation detection
+                    window.addEventListener('popstate', debouncedCheck);
+                    window.addEventListener('hashchange', debouncedCheck);
+                    // Initial check
+                    window.addEventListener('load', sendUpdate);
+                    setTimeout(sendUpdate, 500);
 
                     // Keyboard shortcuts (Cmd/Ctrl + T/W/L/R)
                     document.addEventListener('keydown', function(e) {{
