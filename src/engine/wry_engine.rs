@@ -42,9 +42,21 @@ impl WebEngine for WryEngine<'_> {
                 let _ = tx.send(req.body().clone());
             })
             .with_new_window_req_handler(move |url| {
-                // Send as a Navigate message to open in a new tab
-                let msg = format!(r#"{{"type":"OpenUrl","url":"{}"}}"#, url.replace('"', r#"\""#));
-                let _ = new_window_tx.send(msg);
+                // Filter out background/auth/tracking requests
+                let dominated_by_background = url.contains("RotateCookies")
+                    || url.contains("accounts.google.com/ServiceLogin")
+                    || url.contains("accounts.google.com/o/oauth2")
+                    || url.contains("consent.google.com")
+                    || url.contains("accounts.youtube.com")
+                    || url.starts_with("about:")
+                    || url.starts_with("blob:")
+                    || url.starts_with("data:")
+                    || url.is_empty();
+
+                if !dominated_by_background && (url.starts_with("http://") || url.starts_with("https://")) {
+                    let msg = format!(r#"{{"type":"OpenUrl","url":"{}"}}"#, url.replace('"', r#"\""#));
+                    let _ = new_window_tx.send(msg);
+                }
                 false // don't open a native window
             })
             .with_initialization_script(&format!(
