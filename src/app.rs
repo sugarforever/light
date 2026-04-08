@@ -170,6 +170,9 @@ impl AppState {
                 }
                 self.resize_all_webviews();
             }
+            ipc::ChromeToApp::OpenUrl { url } => {
+                self.create_tab(&url);
+            }
             ipc::ChromeToApp::FocusAddressBar => {
                 if let Some(navbar) = &self.navbar_webview {
                     let _ = navbar.evaluate_script("handleMessage({type:'FocusAddressBar'})");

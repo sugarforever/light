@@ -32,6 +32,7 @@ impl WebEngine for WryEngine<'_> {
         bounds: Rect,
     ) -> EngineResult<()> {
         let tx = self.ipc_sender.clone();
+        let new_window_tx = self.ipc_sender.clone();
         let tab_id_val = tab_id.0;
         let webview = WebViewBuilder::new()
             .with_bounds(bounds)
@@ -39,6 +40,12 @@ impl WebEngine for WryEngine<'_> {
             .with_user_agent(USER_AGENT)
             .with_ipc_handler(move |req| {
                 let _ = tx.send(req.body().clone());
+            })
+            .with_new_window_req_handler(move |url| {
+                // Send as a Navigate message to open in a new tab
+                let msg = format!(r#"{{"type":"OpenUrl","url":"{}"}}"#, url.replace('"', r#"\""#));
+                let _ = new_window_tx.send(msg);
+                false // don't open a native window
             })
             .with_initialization_script(&format!(
                 r#"
